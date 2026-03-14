@@ -28,7 +28,7 @@ Nodes can **depend on** other nodes. A node's **effective state** is the worst o
 
 ## API Design
 
-Base URL: `https://api.depends.cc/v1`
+Base URL: `https://depends.cc/v1`
 
 Authentication: Bearer token per namespace.
 
@@ -119,14 +119,14 @@ PUT /state/{namespace}/{node-id}/{state}
 `{state}` is one of `green`, `yellow`, or `red`. Returns `204 No Content`. Auto-creates the node if it doesn't exist (with no dependencies). One curl call:
 
 ```bash
-curl -X PUT https://api.depends.cc/v1/state/acme/api-server/green \
+curl -X PUT https://depends.cc/v1/state/acme/api-server/green \
   -H "Authorization: Bearer $DEPENDS_TOKEN"
 ```
 
 Optionally include a reason and a recommended solution via headers (the caller knows both):
 
 ```bash
-curl -X PUT https://api.depends.cc/v1/state/acme/api-server/red \
+curl -X PUT https://depends.cc/v1/state/acme/api-server/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "X-Depends-Reason: disk full on /var/data" \
   -H "X-Depends-Solution: Check disk usage (df -h), clear logs, expand volume."
@@ -352,23 +352,20 @@ depends validate                  — Check depends.yml for cycles, missing refs
 depends diff                      — Show what would change on push
 ```
 
-Built with `bun build --compile` for standalone executables:
+Install via the install script:
 
-| Platform       | Target                   |
-|----------------|--------------------------|
-| macOS ARM      | `bun build --compile --target=bun-darwin-arm64`  |
-| macOS x86      | `bun build --compile --target=bun-darwin-x64`    |
-| Linux ARM      | `bun build --compile --target=bun-linux-arm64`   |
-| Linux x86      | `bun build --compile --target=bun-linux-x64`     |
+```bash
+curl -fsSL https://depends.cc/install.sh | sh
+```
 
-No runtime dependencies — download the binary, run it.
+This clones the repo to `~/.depends/src` and links the CLI globally via `bun link`. Update with `depends update`.
 
 Configuration in `~/.depends/config.yml`:
 
 ```yaml
 default_namespace: myproject
 token: dep_...
-api_url: https://api.depends.cc/v1   # default, overridable for self-hosted
+api_url: https://depends.cc/v1   # default, overridable for self-hosted
 ```
 
 Or via environment variables: `DEPENDS_TOKEN`, `DEPENDS_NAMESPACE`.
@@ -391,23 +388,23 @@ Services push their own state to depends.cc. When something goes red, a webhook 
 
 ```bash
 # Create a namespace
-DEPENDS_TOKEN=$(curl -s -X POST https://api.depends.cc/v1/namespaces \
+DEPENDS_TOKEN=$(curl -s -X POST https://depends.cc/v1/namespaces \
   -H "Content-Type: application/json" \
   -d '{"id": "myproject"}' | jq -r '.token')
 
 # Define the graph structure (or use `depends push` with a YAML file)
-curl -X PUT https://api.depends.cc/v1/nodes/myproject/api-server \
+curl -X PUT https://depends.cc/v1/nodes/myproject/api-server \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"label": "API Server"}'
 
-curl -X PUT https://api.depends.cc/v1/nodes/myproject/worker \
+curl -X PUT https://depends.cc/v1/nodes/myproject/worker \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"label": "Background Worker", "depends_on": ["api-server"]}'
 
 # Set up notifications
-curl -X PUT https://api.depends.cc/v1/notifications/myproject \
+curl -X PUT https://depends.cc/v1/notifications/myproject \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -428,7 +425,7 @@ Each service reports its own health to depends.cc — no external poller needed:
 const DEPENDS_TOKEN = process.env.DEPENDS_TOKEN;
 
 async function reportState(state: "green" | "yellow" | "red") {
-  await fetch(`https://api.depends.cc/v1/state/myproject/api-server/${state}`, {
+  await fetch(`https://depends.cc/v1/state/myproject/api-server/${state}`, {
     method: "PUT",
     headers: { "Authorization": `Bearer ${DEPENDS_TOKEN}` },
   });
@@ -580,7 +577,7 @@ depends/
 
 ### Why Bun + SQLite
 
-- **Single binary, zero infra** — `bun build` compiles to a standalone executable. Deploy is copying one file.
+- **Zero infra** — clone, `bun install`, run. No build step needed.
 - **Native SQLite** — Bun has built-in `bun:sqlite`, no native addon compilation needed.
 - **WAL mode** — Multiple readers, single writer. For a state-tracking service with many reads and infrequent writes, this is ideal. No need for a database server.
 - **Scaling** — A single SQLite file handles thousands of namespaces and millions of nodes easily. If you outgrow it, the SQL schema maps directly to Postgres with minimal changes.

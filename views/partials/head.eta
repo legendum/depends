@@ -7,7 +7,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --green: #4caf50;
+    --green: #64d177;
     --yellow: #ff9800;
     --red: #f44336;
     --bg: #f2f2f2;
@@ -43,6 +43,21 @@
     margin: 0 auto;
   }
 
+  header nav {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+
+  header nav a {
+    color: var(--fg);
+    text-decoration: none;
+    margin: 0 0.75rem;
+  }
+
+  header nav a:hover {
+    text-decoration: underline;
+  }
+
   main {
     max-width: var(--max-w);
     margin: 0 auto;
@@ -52,6 +67,9 @@
   h2 {
     font-size: 1.25rem;
     margin: 2.5rem 0 0.75rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid var(--green);
+    display: inline-block;
   }
 
   h2:first-child { margin-top: 0; }
@@ -89,5 +107,18 @@
     color: var(--muted);
     font-size: 0.8rem;
     border-top: 1px solid var(--border);
+  }
+
+  .config-block {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+  }
+
+  .config-block h3 {
+    margin-top: 0;
+    font-size: 1rem;
   }
 </style>

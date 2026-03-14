@@ -1,0 +1,132 @@
+<style>
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .plan {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .plan h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .plan .price {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0.5rem 0;
+  }
+
+  .plan .price span {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .plan ul {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    text-align: left;
+  }
+
+  .plan ul li {
+    font-size: 0.9rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .plan ul li:last-child { border-bottom: none; }
+
+  .plan.highlight {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green);
+  }
+
+  .signup-link {
+    display: inline-block;
+    margin-top: 1rem;
+    padding: 0.5rem 1.5rem;
+    background: var(--fg);
+    color: var(--bg);
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .signup-link:hover { opacity: 0.85; }
+</style>
+
+<h2>Pricing</h2>
+<p>Based on monthly active nodes &mdash; a node counts if it received at least one state write that month.</p>
+
+<div class="plans">
+  <div class="plan">
+    <h3>Free</h3>
+    <div class="price">$0</div>
+    <ul>
+      <li>10 nodes</li>
+      <li>1 namespace</li>
+      <li>100 events/mo</li>
+      <li>7-day event history</li>
+    </ul>
+    <a href="/signup" class="signup-link">Get started</a>
+  </div>
+
+  <div class="plan highlight">
+    <h3>Pro</h3>
+    <div class="price">$19 <span>/mo</span></div>
+    <ul>
+      <li>500 nodes</li>
+      <li>5 namespaces</li>
+      <li>5,000 events/mo</li>
+      <li>30-day event history</li>
+    </ul>
+    <a href="/signup" class="signup-link">Get started</a>
+  </div>
+
+  <div class="plan">
+    <h3>Team</h3>
+    <div class="price">$49 <span>/mo</span></div>
+    <ul>
+      <li>5,000 nodes</li>
+      <li>50 namespaces</li>
+      <li>50,000 events/mo</li>
+      <li>30-day event history</li>
+    </ul>
+    <a href="/signup" class="signup-link">Get started</a>
+  </div>
+
+  <!--
+  <div class="plan">
+    <h3>Enterprise</h3>
+    <div class="price">Custom</div>
+    <ul>
+      <li>100,000+ nodes</li>
+      <li>500+ namespaces</li>
+      <li>1,000,000+ events/mo</li>
+    </ul>
+    <a href="/signup" class="signup-link">Contact us</a>
+  </div>
+  -->
+</div>
+
+<div class="plan" style="max-width: 480px; margin: 1.5rem auto; text-align: left;">
+  <h3 style="text-align: center;">Self-hosted</h3>
+  <p>Run depends.cc locally for free with no limits. Open source, SQLite-backed.</p>
+<pre><code>git clone https://github.com/legendum/depends.git
+cd depends
+bun install
+bun link            # makes "depends" available globally
+depends serve</code></pre>
+  <p style="color: var(--muted); font-size: 0.85rem; margin-top: 0.75rem;">No signup needed &mdash; uses the <code>dep_local</code> token automatically.</p>
+</div>

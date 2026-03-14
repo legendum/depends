@@ -7,32 +7,49 @@ bun install
 bun run dev        # watches for changes
 # or
 bun run start      # production mode
+# or
+depends serve      # via the CLI
 ```
 
 Server runs on `http://localhost:3000` by default. Set `PORT` env var to change.
 
-## Build standalone binary
-
-```bash
-# For your current machine
-bun build --compile src/server.ts --outfile depends-server
-
-# Cross-compile
-bun build --compile --target=bun-linux-x64 src/server.ts --outfile depends-server-linux-x64
-bun build --compile --target=bun-linux-arm64 src/server.ts --outfile depends-server-linux-arm64
-```
-
 ## Production deploy
 
-1. Copy the binary to your server
-2. Run it: `PORT=3000 ./depends-server`
-3. It creates `depends.db` in the working directory on first run
+1. Clone the repo to your server
+2. Run `bun install`
+3. Run `PORT=3000 bun run src/server.ts`
 4. Put a reverse proxy (nginx/caddy) in front for HTTPS
+
+### Nginx example
+
+```nginx
+server {
+    listen 80;
+    server_name depends.cc;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name depends.cc;
+
+    ssl_certificate /etc/letsencrypt/live/depends.cc/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/depends.cc/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
 ### Caddy example
 
 ```
-api.depends.cc {
+depends.cc {
     reverse_proxy localhost:3000
 }
 ```
@@ -45,7 +62,7 @@ Description=depends.cc
 After=network.target
 
 [Service]
-ExecStart=/opt/depends/depends-server
+ExecStart=/usr/bin/bun run /opt/depends/src/server.ts
 WorkingDirectory=/opt/depends
 Environment=PORT=3000
 Restart=always
@@ -57,9 +74,9 @@ WantedBy=multi-user.target
 
 ## Database
 
-- SQLite file at `./depends.db`
+- SQLite file at `./data/depends.db`
 - WAL mode — safe for multiple readers, single writer
-- Backup: `cp depends.db depends.db.backup` (safe with WAL mode)
+- Backup: `cp data/depends.db data/depends.db.backup` (safe with WAL mode)
 - The database is created automatically on first run with the full schema
 
 ## Environment variables

@@ -1,4 +1,5 @@
 <header>
   <a href="/"><img src="/logo.png" alt="depends.cc"></a>
   <p><%= it.subtitle ?? "Lightweight dependency state tracking. Push state in, get webhooks out." %></p>
+  <nav><a href="/">Home</a> <a href="/pricing">Pricing</a> <a href="/docs">Docs</a> <a href="/mcp">MCP</a> <a href="/signup">Sign up</a></nav>
 </header>

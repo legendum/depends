@@ -49,6 +49,7 @@
     font-size: 0.9rem;
     margin-top: 0.5rem;
   }
+
 </style>
 
 <h2>What is it?</h2>
@@ -70,22 +71,19 @@
 </div>
 
 <h2>How it works</h2>
-<ul>
-  <li><strong>Push state</strong> &mdash; services report their own health via a single PUT. No polling, no agents.</li>
-  <li><strong>Dependency graph</strong> &mdash; define what depends on what. Effective state propagates automatically.</li>
-  <li><strong>Webhooks</strong> &mdash; get notified when things change. HMAC-signed, with retries.</li>
-  <li><strong>Reason &amp; solution</strong> &mdash; attach context: <em>why</em> is this red, and <em>what should I do?</em></li>
-</ul>
 
-<p>One curl call to set state:</p>
-
-<pre><code>curl -X PUT https://api.depends.cc/v1/state/myproject/database/red \
+<div class="config-block">
+  <h3>Push state</h3>
+  <p>Services report their own health via a single PUT. No polling, no agents.</p>
+<pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "X-Depends-Reason: disk full on /var/data" \
   -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
+</div>
 
-<p>Define your graph as YAML, commit it to source control:</p>
-
+<div class="config-block">
+  <h3>Dependency graph</h3>
+  <p>Define what depends on what. Effective state propagates automatically. Commit it to source control as YAML.</p>
 <pre><code>namespace: myproject
 
 nodes:
@@ -101,22 +99,35 @@ nodes:
     label: Background Worker
     depends_on:
       - api-server</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Webhooks</h3>
+  <p>Get notified when things change. HMAC-signed, with retries.</p>
+</div>
+
+<div class="config-block">
+  <h3>Reason &amp; solution</h3>
+  <p>Attach context: <em>why</em> is this red, and <em>what should I do?</em></p>
+</div>
 
 <h2>Get started</h2>
 
-<p>Sign up to get a token, then create a namespace:</p>
-
+<div class="config-block">
+  <h3>With curl</h3>
+  <p>Sign up to get a token, then create a namespace:</p>
 <pre><code># Sign up (returns a token — save it, shown only once)
-curl -s -X POST https://api.depends.cc/v1/signup
+curl -s -X POST https://depends.cc/v1/signup
 
 # Create a namespace (authenticated)
-curl -s -X POST https://api.depends.cc/v1/namespaces \
+curl -s -X POST https://depends.cc/v1/namespaces \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id": "myproject"}'</code></pre>
+</div>
 
-<p>Or use the CLI:</p>
-
+<div class="config-block">
+  <h3>With the CLI</h3>
 <pre><code># Install
 curl -fsSL https://depends.cc/install.sh | sh
 
@@ -132,16 +143,10 @@ depends set myproject/db red --reason "disk full"
 depends graph                               # print dependency tree
 depends diff                                # preview changes before pushing
 depends delete                              # remove a namespace and all its data</code></pre>
+</div>
 
 <div class="cta">
   <strong>API-first, no SDK required.</strong>
   <p>Any language, any platform. If it can make an HTTP request, it can use depends.cc.</p>
+  <p>Free tier available &mdash; <a href="/pricing">see pricing</a> or <a href="/signup">sign up</a>.</p>
 </div>
-
-<h2>Pricing</h2>
-<p>Based on monthly active nodes &mdash; a node counts if it received at least one state write that month.</p>
-
-<pre><code>Free        10 nodes     1 namespace      100 events/mo       $0
-Pro        500 nodes     5 namespaces   5,000 events/mo      $19/mo
-Team     5,000 nodes    50 namespaces  50,000 events/mo      $49/mo
-Enterprise  Custom      Custom         Custom              Contact us</code></pre>

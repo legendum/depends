@@ -55,9 +55,83 @@ export function createApp(db: Database) {
     // Static files
     .get("/favicon.png", () => Bun.file(join(PUBLIC_DIR, "favicon.png")))
     .get("/logo.png", () => Bun.file(join(PUBLIC_DIR, "logo.png")))
+    .get("/llms.txt", () => new Response(Bun.file(join(PUBLIC_DIR, "llms.txt")), {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    }))
+    .get("/install.sh", () => new Response(Bun.file(join(PUBLIC_DIR, "install.sh")), {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    }))
 
     // Homepage
     .get("/", () => render("index", { title: "depends.cc — dependency state tracking" }))
+
+    // Pricing
+    .get("/pricing", () => render("pricing", { title: "Pricing — depends.cc" }))
+
+    // Signup
+    .get("/signup", () => render("signup", { title: "Sign up — depends.cc" }))
+
+    // License
+    .get("/license", () => render("license", { title: "License — depends.cc" }))
+
+    // MCP
+    .get("/mcp", () => render("mcp", { title: "MCP Server — depends.cc" }))
+
+    // Docs — HTML for humans, JSON for agents
+    .get("/docs", ({ request }) => {
+      const accept = request.headers.get("Accept") ?? "";
+      if (accept.includes("application/json")) {
+        return Response.json({
+          cli: {
+            install: "curl -fsSL https://depends.cc/install.sh | sh",
+            commands: {
+              "serve [-p <port>]": "Run the server locally (default: 3000)",
+              "signup": "Create account, get token (auto-saved)",
+              "init": "Scaffold depends.yml from current directory name",
+              "push [--prune]": "Upload depends.yml (auto-creates namespace)",
+              "pull": "Download remote graph into depends.yml",
+              "status [<ns/node>] [--json]": "Show node states",
+              "set [<ns/>]<node> <state> [--reason] [--solution]": "Set state (green/yellow/red)",
+              "graph": "Print dependency tree",
+              "validate": "Check depends.yml for errors and cycles",
+              "diff": "Show what would change on push",
+              "delete": "Delete namespace and all its data",
+            },
+            config: {
+              env: ["DEPENDS_TOKEN", "DEPENDS_NAMESPACE", "DEPENDS_API_URL"],
+              file: "~/.depends/config.yml (token, default_namespace, api_url)",
+              local_mode: "No token → uses dep_local against localhost:3000",
+            },
+          },
+          api: {
+            base: "/v1",
+            auth: "Bearer token in Authorization header",
+            endpoints: [
+              { method: "POST", path: "/v1/signup", auth: false, description: "Create account, returns token" },
+              { method: "POST", path: "/v1/namespaces", auth: "token", description: "Create namespace", body: { id: "string" } },
+              { method: "DELETE", path: "/v1/namespaces/:namespace", auth: "namespace", description: "Delete namespace and all data" },
+              { method: "GET", path: "/v1/nodes/:namespace", auth: "namespace", description: "List all nodes" },
+              { method: "GET", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Get single node detail" },
+              { method: "PUT", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Create/update node", body: { label: "string?", depends_on: "string[]?", meta: "string?", ttl: "string?" } },
+              { method: "DELETE", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Delete node" },
+              { method: "PUT", path: "/v1/state/:namespace/:nodeId/:state", auth: "namespace", description: "Set node state (green/yellow/red)", headers: { "X-Depends-Reason": "string?", "X-Depends-Solution": "string?" } },
+              { method: "GET", path: "/v1/events/:namespace[/:nodeId]", auth: "namespace", description: "List state change events", query: { limit: "number?", since: "ISO date?", until: "ISO date?" } },
+              { method: "GET", path: "/v1/graph/:namespace", auth: "namespace", description: "Get full graph (add ?format=yaml for YAML)" },
+              { method: "PUT", path: "/v1/graph/:namespace", auth: "namespace", description: "Upload YAML graph (?prune=true to remove unlisted nodes)", content_type: "application/yaml" },
+              { method: "GET", path: "/v1/graph/:namespace/:nodeId", auth: "namespace", description: "Get subgraph for node" },
+              { method: "GET", path: "/v1/graph/:namespace/:nodeId/upstream", auth: "namespace", description: "Get transitive dependencies" },
+              { method: "GET", path: "/v1/graph/:namespace/:nodeId/downstream", auth: "namespace", description: "Get transitive dependents" },
+              { method: "GET", path: "/v1/notifications/:namespace", auth: "namespace", description: "List notification rules" },
+              { method: "PUT", path: "/v1/notifications/:namespace", auth: "namespace", description: "Create/update notification rule", body: { id: "string", url: "string", watch: "string? (default: *)", on: "string? (default: red)", secret: "string?", ack: "boolean?" } },
+              { method: "DELETE", path: "/v1/notifications/:namespace/:ruleId", auth: "namespace", description: "Delete notification rule" },
+              { method: "POST", path: "/v1/notifications/:namespace/:ruleId/ack", auth: "namespace", description: "Acknowledge/un-suppress rule" },
+              { method: "GET", path: "/v1/usage/:namespace", auth: "namespace", description: "Get usage stats and plan limits" },
+            ],
+          },
+        });
+      }
+      return render("docs", { title: "Docs — depends.cc" });
+    })
 
     // Unauthenticated: signup (creates a token)
     .post("/v1/signup", ({ request }) => handleSignup(db, request))
@@ -178,7 +252,12 @@ export function createServer(db: Database, port: number = PORT) {
 
 // Start server if run directly
 if (import.meta.main) {
+  const { purgeExpiredEvents } = await import("./purge");
+
   const db = createDb(join(import.meta.dir, "..", "data", "depends.db"));
   const server = createServer(db, PORT);
   console.log(`depends.cc listening on http://localhost:${server.port}`);
+
+  // Purge expired events every hour
+  setInterval(() => purgeExpiredEvents(db), 60 * 60 * 1000);
 }

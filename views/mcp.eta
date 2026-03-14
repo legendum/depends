@@ -1,0 +1,179 @@
+<style>
+  .tool-list {
+    margin: 1rem 0;
+  }
+
+  .tool-list dt {
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-top: 0.75rem;
+  }
+
+  .tool-list dd {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-left: 0;
+    margin-bottom: 0.5rem;
+  }
+</style>
+
+<h2>MCP Server</h2>
+
+<p>depends.cc works as an <a href="https://modelcontextprotocol.io">MCP</a> (Model Context Protocol) server, letting AI agents in Claude Code, Cursor, Windsurf, and other tools query and update dependency state directly.</p>
+
+<h2>Setup</h2>
+
+<p>The MCP server runs in two modes:</p>
+<ul>
+  <li><strong>Local mode</strong> &mdash; connects to a local <code>depends serve</code> instance. No signup needed, no limits.</li>
+  <li><strong>Remote mode</strong> &mdash; connects to <code>depends.cc</code> using your token. Requires <code>depends signup</code> first.</li>
+</ul>
+<p>Mode is auto-detected: if no token is configured, it uses local mode. If <code>~/.depends/config.yml</code> has a token, it uses remote mode.</p>
+
+<div class="config-block">
+  <h3>Claude Code</h3>
+  <p>Add to your project's <code>.mcp.json</code>:</p>
+<pre><code>// Local mode (auto-detected when no token is set)
+{
+  "mcpServers": {
+    "depends": {
+      "command": "depends",
+      "args": ["mcp"]
+    }
+  }
+}
+
+// Remote mode (explicit)
+{
+  "mcpServers": {
+    "depends": {
+      "command": "depends",
+      "args": ["mcp"],
+      "env": {
+        "DEPENDS_TOKEN": "dep_..."
+      }
+    }
+  }
+}</code></pre>
+  <p>Or add globally via:</p>
+<pre><code># Local
+claude mcp add depends -- depends mcp
+
+# Remote
+claude mcp add depends -e DEPENDS_TOKEN=dep_... -- depends mcp</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Cursor</h3>
+  <p>Add to <code>.cursor/mcp.json</code>:</p>
+<pre><code>{
+  "mcpServers": {
+    "depends": {
+      "command": "depends",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Windsurf</h3>
+  <p>Add to <code>~/.codeium/windsurf/mcp_config.json</code>:</p>
+<pre><code>{
+  "mcpServers": {
+    "depends": {
+      "command": "depends",
+      "args": ["mcp"]
+    }
+  }
+}</code></pre>
+</div>
+
+<h2>Available tools</h2>
+
+<p>Once configured, the AI agent has access to these tools:</p>
+
+<dl class="tool-list">
+  <dt>depends_status</dt>
+  <dd>Get the state of all nodes or a specific node. Returns JSON with state, effective state, reason, and solution.</dd>
+
+  <dt>depends_set</dt>
+  <dd>Set a node's state to green, yellow, or red. Supports reason and solution fields.</dd>
+
+  <dt>depends_graph</dt>
+  <dd>Get the full dependency graph &mdash; nodes, edges, and effective states.</dd>
+
+  <dt>depends_events</dt>
+  <dd>List recent state change events for a namespace or specific node.</dd>
+
+  <dt>depends_push</dt>
+  <dd>Upload a <code>depends.yml</code> file to sync the dependency graph.</dd>
+
+  <dt>depends_pull</dt>
+  <dd>Download the current graph as YAML.</dd>
+</dl>
+
+<h2>Example usage</h2>
+
+<p>Once the MCP server is configured, AI agents can interact with your dependency graph naturally:</p>
+
+<div class="config-block">
+  <h3>Checking status before deploying</h3>
+  <p><em>"Check if all dependencies for the api-server are green before we deploy."</em></p>
+  <p>The agent calls <code>depends_status</code> and inspects effective states, reporting any upstream issues.</p>
+</div>
+
+<div class="config-block">
+  <h3>Updating state from CI</h3>
+  <p><em>"The database migration failed &mdash; mark the database as red with the reason."</em></p>
+  <p>The agent calls <code>depends_set</code> with state <code>red</code>, a reason, and a suggested solution.</p>
+</div>
+
+<div class="config-block">
+  <h3>Investigating incidents</h3>
+  <p><em>"What changed in the last hour? Something is broken."</em></p>
+  <p>The agent calls <code>depends_events</code> to find recent state changes and traces the root cause through the dependency graph.</p>
+</div>
+
+<h2>AI onboarding</h2>
+
+<p>When an AI agent encounters depends.cc for the first time, these resources help it get up to speed:</p>
+
+<div class="config-block">
+  <h3>llms.txt</h3>
+  <p>A plain-text overview at <a href="/llms.txt"><code>llms.txt</code></a> &mdash; designed for AI agents to fetch in a single request. Covers key concepts, CLI commands, and the full API surface.</p>
+</div>
+
+<div class="config-block">
+  <h3>JSON docs</h3>
+  <p>Request <code>/docs</code> with <code>Accept: application/json</code> for structured, machine-readable API documentation including every endpoint, method, auth requirement, and parameter schema.</p>
+<pre><code>curl -H "Accept: application/json" https://depends.cc/docs</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Status as JSON</h3>
+  <p>Use <code>depends status --json</code> or the API directly to get machine-readable state for all nodes in a namespace.</p>
+<pre><code>depends status --json
+depends status myproject/database --json</code></pre>
+</div>
+
+<h2>Local vs remote</h2>
+
+<div class="config-block">
+  <h3>Local</h3>
+  <p>Run <code>depends serve</code> and the MCP server connects to it automatically &mdash; no signup, no token, no limits.</p>
+<pre><code># Start local server
+depends serve
+
+# MCP auto-detects local mode — nothing else to configure</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Remote</h3>
+  <p>Run <code>depends signup</code> once. The token is saved to <code>~/.depends/config.yml</code> and the MCP server switches to remote mode automatically.</p>
+<pre><code># One-time setup
+depends signup
+
+# MCP now connects to depends.cc using your saved token</code></pre>
+</div>

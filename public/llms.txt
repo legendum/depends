@@ -1,0 +1,72 @@
+# depends.cc
+
+depends.cc is a dependency state tracking service. It models systems as directed acyclic graphs (DAGs) where each node has a traffic-light state: green, yellow, or red.
+
+When a node's state changes, the "effective state" of all downstream dependents is automatically recomputed. If a database goes red, every service that depends on it becomes effectively red — without updating each one individually.
+
+## Key concepts
+
+- **Node**: A thing with a state (green/yellow/red). Has an optional label, reason, and solution.
+- **Edge**: A dependency between nodes. "A depends on B" means A's effective state is affected by B.
+- **Effective state**: The worst state of a node and all its transitive dependencies.
+- **Namespace**: A named container for a graph of nodes and edges. Owned by a token.
+- **Token**: An authentication credential. Prefix: `dep_`. Owns one or more namespaces.
+- **Reason**: Why a node is in its current state (e.g. "disk full on /var/data").
+- **Solution**: What to do about it (e.g. "Clear /var/log, expand volume").
+
+## CLI quick reference
+
+```
+depends serve              Run locally (no signup needed, uses dep_local token)
+depends signup             Get a token (auto-saved to ~/.depends/config.yml)
+depends init               Scaffold depends.yml from current directory name
+depends push [--prune]     Upload depends.yml (auto-creates namespace)
+depends pull               Download graph as depends.yml
+depends status [ns/node]   Show states (add --json for machine-readable output)
+depends set [ns/]node state  Set state: green, yellow, or red
+depends graph              Print dependency tree
+depends validate           Check depends.yml for errors
+depends diff               Preview changes before pushing
+depends delete             Delete a namespace and all data
+```
+
+## API quick reference
+
+Base URL: https://depends.cc/v1 (or http://localhost:3000/v1 for local)
+Auth: Bearer token in Authorization header
+
+POST   /v1/signup                              Create account (no auth)
+POST   /v1/namespaces                          Create namespace (token auth)
+DELETE /v1/namespaces/:ns                       Delete namespace
+GET    /v1/nodes/:ns                            List nodes
+GET    /v1/nodes/:ns/:id                        Get node detail
+PUT    /v1/nodes/:ns/:id                        Create/update node
+DELETE /v1/nodes/:ns/:id                        Delete node
+PUT    /v1/state/:ns/:id/:state                 Set state (green/yellow/red)
+GET    /v1/events/:ns[/:id]                     List state change events
+GET    /v1/graph/:ns                            Get graph (add ?format=yaml)
+PUT    /v1/graph/:ns                            Upload YAML graph
+GET    /v1/graph/:ns/:id/upstream               Transitive dependencies
+GET    /v1/graph/:ns/:id/downstream             Transitive dependents
+PUT    /v1/notifications/:ns                    Create webhook rule
+GET    /v1/usage/:ns                            Usage stats and limits
+
+## Setting state with context
+
+PUT /v1/state/:ns/:id/red
+Headers:
+  X-Depends-Reason: disk full on /var/data
+  X-Depends-Solution: Clear /var/log, expand volume
+
+## Local mode
+
+If no token is configured, the CLI defaults to local mode:
+- Token: dep_local (well-known, no signup needed)
+- URL: http://localhost:3000/v1
+- No limits (enterprise plan)
+- Start server: depends serve
+
+## Machine-readable docs
+
+GET /docs with Accept: application/json returns structured API documentation.
+GET /v1/nodes/:ns with --json flag returns JSON array of all node states.

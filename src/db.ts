@@ -78,11 +78,11 @@ CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(namespace, node_id, id);
 CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(namespace, to_node);
 `;
 
-export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number }> = {
-  free: { nodes: 10, events: 100, namespaces: 1 },
-  pro: { nodes: 500, events: 5_000, namespaces: 5 },
-  team: { nodes: 5_000, events: 50_000, namespaces: 50 },
-  enterprise: { nodes: 100_000, events: 1_000_000, namespaces: 500 },
+export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number; eventRetentionDays: number }> = {
+  free: { nodes: 10, events: 100, namespaces: 1, eventRetentionDays: 7 },
+  pro: { nodes: 500, events: 5_000, namespaces: 5, eventRetentionDays: 30 },
+  team: { nodes: 5_000, events: 50_000, namespaces: 50, eventRetentionDays: 30 },
+  enterprise: { nodes: 100_000, events: 1_000_000, namespaces: 500, eventRetentionDays: 30 },
 };
 
 /**

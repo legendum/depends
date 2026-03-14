@@ -67,6 +67,7 @@ async function cli(
       DEPENDS_TOKEN: token,
       DEPENDS_NAMESPACE: NS,
       DEPENDS_API_URL: baseUrl,
+      DEPENDS_CONFIG: join(tmpDir, "config.yml"),
       ...opts.env,
     },
     stdout: "pipe",
@@ -463,12 +464,12 @@ describe("depends CLI", () => {
   });
 
   describe("config", () => {
-    test("missing token shows helpful error", async () => {
+    test("missing token falls back to local mode", async () => {
       const { stderr, exitCode } = await cli(["status"], {
         env: { DEPENDS_TOKEN: "", DEPENDS_NAMESPACE: NS },
       });
-      expect(exitCode).toBe(1);
-      expect(stderr).toContain("No token");
+      expect(exitCode).toBe(0);
+      expect(stderr).toContain("local mode");
     });
 
     test("missing namespace shows helpful error", async () => {

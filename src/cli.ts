@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
 import { join } from "path";
 import { homedir } from "os";
 import yaml from "js-yaml";
@@ -18,7 +19,7 @@ function loadConfig(): Config {
   const envNs = process.env.DEPENDS_NAMESPACE;
   const envUrl = process.env.DEPENDS_API_URL;
 
-  const configPath = join(homedir(), ".depends", "config.yml");
+  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".depends", "config.yml");
   let fileConfig: Config = {};
   if (existsSync(configPath)) {
     try {
@@ -26,13 +27,24 @@ function loadConfig(): Config {
     } catch {}
   }
 
-  const apiUrl = envUrl ?? fileConfig.api_url ?? "https://api.depends.cc/v1";
-  const isLocal = apiUrl.includes("localhost") || apiUrl.includes("127.0.0.1");
+  const token = envToken ?? fileConfig.token;
+  const apiUrl = envUrl ?? fileConfig.api_url;
+
+  // No token configured anywhere → local mode
+  if (!token) {
+    const localUrl = apiUrl ?? "http://localhost:3000/v1";
+    console.error(`${COLORS.dim}Using local mode (dep_local → ${localUrl}). Set DEPENDS_TOKEN for production.${COLORS.reset}`);
+    return {
+      token: "dep_local",
+      default_namespace: envNs ?? fileConfig.default_namespace,
+      api_url: localUrl,
+    };
+  }
 
   return {
-    token: envToken ?? fileConfig.token ?? (isLocal ? "dep_local" : undefined),
+    token,
     default_namespace: envNs ?? fileConfig.default_namespace,
-    api_url: apiUrl,
+    api_url: apiUrl ?? "https://depends.cc/v1",
   };
 }
 
@@ -126,23 +138,22 @@ async function cmdSignup(config: Config) {
   }
   const data = await res.json();
 
-  // Auto-save token to ~/.depends/config.yml
-  const configDir = join(homedir(), ".depends");
-  const configPath = join(configDir, "config.yml");
+  // Auto-save token to config file
+  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".depends", "config.yml");
+  const configDir = join(configPath, "..");
 
   if (!existsSync(configDir)) {
     mkdirSync(configDir, { recursive: true });
   }
 
+  const savedConfig: Record<string, unknown> = {};
   if (existsSync(configPath)) {
-    // Update existing config, preserving other fields
     const existing = readFileSync(configPath, "utf-8");
-    const existingConfig = (yaml.load(existing) as Record<string, unknown>) ?? {};
-    existingConfig.token = data.token;
-    writeFileSync(configPath, yaml.dump(existingConfig));
-  } else {
-    writeFileSync(configPath, yaml.dump({ token: data.token }));
+    Object.assign(savedConfig, (yaml.load(existing) as Record<string, unknown>) ?? {});
   }
+  savedConfig.token = data.token;
+  savedConfig.api_url = config.api_url;
+  writeFileSync(configPath, yaml.dump(savedConfig));
 
   console.log(`Token: ${data.token}`);
   console.log(`Saved to ${configPath}`);
@@ -254,8 +265,20 @@ interface StatusNode {
 }
 
 async function cmdStatus(config: Config, args: string[]) {
-  const ns = getNamespace(config, args);
-  const nodeId = args.find((a) => !a.startsWith("-") && a !== "status");
+  const target = args.find((a) => !a.startsWith("-") && a !== "status");
+  const jsonOutput = args.includes("--json");
+
+  // Support namespace/node syntax
+  let ns: string;
+  let nodeId: string | undefined;
+  if (target?.includes("/")) {
+    const slashIdx = target.indexOf("/");
+    ns = target.slice(0, slashIdx);
+    nodeId = target.slice(slashIdx + 1);
+  } else {
+    ns = getNamespace(config, args);
+    nodeId = target;
+  }
 
   if (nodeId) {
     // Single node detail
@@ -266,6 +289,10 @@ async function cmdStatus(config: Config, args: string[]) {
       process.exit(1);
     }
     const node: StatusNode = await res.json();
+    if (jsonOutput) {
+      console.log(JSON.stringify(node, null, 2));
+      return;
+    }
     console.log(`${COLORS.bold}${node.id}${COLORS.reset}${node.label ? ` (${node.label})` : ""}`);
     console.log(`  state:     ${colorState(node.state)}`);
     console.log(`  effective: ${colorState(node.effective_state)}`);
@@ -284,6 +311,11 @@ async function cmdStatus(config: Config, args: string[]) {
     process.exit(1);
   }
   const nodes: StatusNode[] = await res.json();
+
+  if (jsonOutput) {
+    console.log(JSON.stringify(nodes, null, 2));
+    return;
+  }
 
   if (nodes.length === 0) {
     console.log("No nodes in this namespace.");
@@ -602,6 +634,25 @@ async function cmdDiff(config: Config, args: string[]) {
   }
 }
 
+async function cmdUpdate() {
+  const srcDir = join(homedir(), ".depends", "src");
+  if (!existsSync(srcDir)) {
+    console.error("Error: depends not installed via install.sh. Run:");
+    console.error("  curl -fsSL https://depends.cc/install.sh | sh");
+    process.exit(1);
+  }
+
+  console.log("Updating depends...");
+  try {
+    execSync("git pull --quiet", { cwd: srcDir, stdio: "inherit" });
+    execSync("bun install --silent", { cwd: srcDir, stdio: "inherit" });
+    console.log("Updated to latest version.");
+  } catch {
+    console.error("Error: update failed.");
+    process.exit(1);
+  }
+}
+
 async function cmdServe(args: string[]) {
   const portIdx = args.indexOf("-p");
   const port = portIdx !== -1 && args[portIdx + 1] ? parseInt(args[portIdx + 1], 10) : 3000;
@@ -640,10 +691,12 @@ ${COLORS.bold}Usage:${COLORS.reset}
   depends validate                            Check depends.yml for errors
   depends delete                              Delete a namespace and all its data
   depends diff                                Show what would change on push
+  depends update                              Update to the latest version
 
 ${COLORS.bold}Options:${COLORS.reset}
   -n, --namespace <ns>    Override namespace
   -p <port>               Port for serve (default: 3000)
+  --json                  Output as JSON (with status)
   --reason <text>         Reason for state change (with set)
   --solution <text>       Recommended fix (with set)
 
@@ -682,6 +735,9 @@ async function main() {
     case "serve":
       await cmdServe(args);
       return;
+    case "update":
+      await cmdUpdate();
+      break;
     case "signup":
       await cmdSignup(config);
       break;

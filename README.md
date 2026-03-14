@@ -14,21 +14,27 @@ A lightweight, API-first dependency state service. Track the status of things an
 ## Quick start
 
 ```bash
-bun install
-bun run dev    # http://localhost:3000
+# Install
+curl -fsSL https://depends.cc/install.sh | sh
+
+# Run locally (no signup needed)
+depends serve
+
+# In another terminal
+depends init       # scaffold depends.yml
+depends push       # sync to server
+depends status     # see what's green, yellow, red
 ```
 
-Create a namespace and set state:
+Or use the API directly:
 
 ```bash
-# Create namespace (token shown once — save it)
-curl -s -X POST http://localhost:3000/v1/namespaces \
-  -H "Content-Type: application/json" \
-  -d '{"id": "myproject"}' | jq .
+# Sign up
+curl -s -X POST http://localhost:3000/v1/signup
 
-# Set state (state in path, no body)
+# Set state
 curl -X PUT http://localhost:3000/v1/state/myproject/api-server/green \
-  -H "Authorization: Bearer YOUR_TOKEN"
+  -H "Authorization: Bearer $DEPENDS_TOKEN"
 ```
 
 ## API overview
@@ -51,24 +57,24 @@ Define structure in a **`depends.yml`** file (nodes, `depends_on`, notifications
 | Doc | Description |
 |-----|-------------|
 | [docs/CONCEPT.md](docs/CONCEPT.md) | Full API, YAML format, schema, CLI spec, billing, examples |
-| [docs/PLAN.md](docs/PLAN.md) | Implementation status and roadmap |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Run locally, build binary, production deploy |
-| [docs/examples/MIGRATION.md](docs/examples/MIGRATION.md) | Migrating from polling to push (e.g. status pages) |
-| [docs/examples/fitpass.depends.yml](docs/examples/fitpass.depends.yml) | Example dependency graph |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Run locally, production deploy |
+| [docs/UPDATES.md](docs/UPDATES.md) | Upgrading CLI, server, and database migrations |
 
 ## Deploy
 
-- **Dev:** `bun run dev` or `bun run start` (default port 3000; set `PORT` to override).
-- **Binary:** `bun build --compile src/server.ts --outfile depends-server` (optionally with `--target=bun-linux-x64` etc.).
-- **Production:** Run the binary; it creates `depends.db` in the working directory. Put nginx or Caddy in front for HTTPS.
+- **Local:** `depends serve` or `bun run dev` (default port 3000; set `PORT` to override).
+- **Production:** Clone repo, `bun install`, run `bun run src/server.ts`. Put nginx or Caddy in front for HTTPS.
+- **Update:** `depends update` or `git pull && bun install`.
 
-Database: SQLite in WAL mode — single file, no extra infra. Backup with `cp depends.db depends.db.backup`.
+Database: SQLite in WAL mode — single file at `data/depends.db`, no extra infra. Backup with `cp data/depends.db data/depends.db.backup`.
 
 ## Tech
 
 - **Runtime:** Bun (TypeScript)
+- **Framework:** Elysia
 - **Database:** SQLite (WAL), schema and details in [docs/CONCEPT.md](docs/CONCEPT.md)
+- **Templates:** Eta
 
 ## License
 
-See repository license.
+MIT — see [LICENSE](LICENSE).

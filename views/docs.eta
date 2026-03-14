@@ -1,0 +1,167 @@
+<style>
+  .endpoint { font-family: "SF Mono", "Fira Code", "Consolas", monospace; font-size: 0.85rem; }
+  .method { font-weight: 700; }
+  .method.get { color: var(--green); }
+  .method.put { color: var(--yellow); }
+  .method.post { color: #2196f3; }
+  .method.delete { color: var(--red); }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; }
+</style>
+
+<h2>CLI</h2>
+
+<div class="config-block">
+  <h3>Install</h3>
+<pre><code>curl -fsSL https://depends.cc/install.sh | sh</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Commands</h3>
+  <table>
+    <tr><th>Command</th><th>Description</th></tr>
+    <tr><td><code>depends serve [-p &lt;port&gt;]</code></td><td>Run the server locally (default: 3000)</td></tr>
+    <tr><td><code>depends signup</code></td><td>Create an account, get a token (auto-saved to config)</td></tr>
+    <tr><td><code>depends init</code></td><td>Scaffold a <code>depends.yml</code> in the current directory</td></tr>
+    <tr><td><code>depends push [--prune]</code></td><td>Upload <code>depends.yml</code> to the server (auto-creates namespace)</td></tr>
+    <tr><td><code>depends pull</code></td><td>Download the remote graph into <code>depends.yml</code></td></tr>
+    <tr><td><code>depends status [&lt;ns/node&gt;]</code></td><td>Show node states (supports <code>--json</code>)</td></tr>
+    <tr><td><code>depends set [&lt;ns/&gt;]&lt;node&gt; &lt;state&gt;</code></td><td>Set state to green, yellow, or red</td></tr>
+    <tr><td><code>depends graph</code></td><td>Print the dependency tree</td></tr>
+    <tr><td><code>depends validate</code></td><td>Check <code>depends.yml</code> for errors and cycles</td></tr>
+    <tr><td><code>depends diff</code></td><td>Show what would change on push</td></tr>
+    <tr><td><code>depends delete</code></td><td>Delete a namespace and all its data</td></tr>
+  </table>
+</div>
+
+<div class="config-block">
+  <h3>Options</h3>
+  <table>
+    <tr><th>Flag</th><th>Description</th></tr>
+    <tr><td><code>-n, --namespace &lt;ns&gt;</code></td><td>Override namespace</td></tr>
+    <tr><td><code>--reason &lt;text&gt;</code></td><td>Reason for state change (with <code>set</code>)</td></tr>
+    <tr><td><code>--solution &lt;text&gt;</code></td><td>Recommended fix (with <code>set</code>)</td></tr>
+    <tr><td><code>--json</code></td><td>Output as JSON (with <code>status</code>)</td></tr>
+    <tr><td><code>--prune</code></td><td>Remove nodes not in YAML (with <code>push</code>)</td></tr>
+  </table>
+</div>
+
+<div class="config-block">
+  <h3>Configuration</h3>
+  <p>The CLI resolves config from (highest priority first):</p>
+  <ol>
+    <li>Environment variables: <code>DEPENDS_TOKEN</code>, <code>DEPENDS_NAMESPACE</code>, <code>DEPENDS_API_URL</code></li>
+    <li><code>~/.depends/config.yml</code> &mdash; <code>token</code>, <code>default_namespace</code>, <code>api_url</code></li>
+    <li><code>depends.yml</code> in the current directory (for namespace)</li>
+  </ol>
+  <p>If no token is configured, the CLI defaults to local mode (<code>dep_local</code> token against <code>localhost:3000</code>).</p>
+</div>
+
+<h2>API Reference</h2>
+
+<p>All API routes are under <code>/v1</code>. Authenticated routes require a <code>Bearer</code> token in the <code>Authorization</code> header.</p>
+
+<div class="config-block">
+  <h3>Authentication</h3>
+  <p class="endpoint"><span class="method post">POST</span> /v1/signup</p>
+  <p>Create a new account. Returns a token (shown once).</p>
+<pre><code>curl -s -X POST https://depends.cc/v1/signup
+# {"token": "dep_..."}</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Namespaces</h3>
+  <p class="endpoint"><span class="method post">POST</span> /v1/namespaces</p>
+  <p>Create a namespace. Requires token auth (no namespace needed).</p>
+<pre><code>curl -s -X POST https://depends.cc/v1/namespaces \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "myproject"}'</code></pre>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method delete">DELETE</span> /v1/namespaces/:namespace</p>
+  <p>Delete a namespace and all its nodes, edges, events, and notification rules.</p>
+</div>
+
+<div class="config-block">
+  <h3>Nodes</h3>
+  <p class="endpoint"><span class="method get">GET</span> /v1/nodes/:namespace</p>
+  <p>List all nodes in a namespace.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /v1/nodes/:namespace/:nodeId</p>
+  <p>Get a single node with its state, effective state, reason, solution, and edges.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method put">PUT</span> /v1/nodes/:namespace/:nodeId</p>
+  <p>Create or update a node. Body (JSON): <code>label</code>, <code>depends_on</code>, <code>meta</code>, <code>ttl</code>.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method delete">DELETE</span> /v1/nodes/:namespace/:nodeId</p>
+  <p>Delete a node and its edges.</p>
+</div>
+
+<div class="config-block">
+  <h3>State</h3>
+  <p class="endpoint"><span class="method put">PUT</span> /v1/state/:namespace/:nodeId/:state</p>
+  <p>Set a node's state to <code>green</code>, <code>yellow</code>, or <code>red</code>. Auto-creates the node if it doesn't exist.</p>
+  <p>Optional headers:</p>
+  <ul>
+    <li><code>X-Depends-Reason</code> &mdash; why is this state being set?</li>
+    <li><code>X-Depends-Solution</code> &mdash; what should be done to resolve it?</li>
+  </ul>
+<pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Depends-Reason: disk full on /var/data" \
+  -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Events</h3>
+  <p class="endpoint"><span class="method get">GET</span> /v1/events/:namespace</p>
+  <p class="endpoint"><span class="method get">GET</span> /v1/events/:namespace/:nodeId</p>
+  <p>List state change events. Query params: <code>limit</code>, <code>since</code>, <code>until</code>.</p>
+</div>
+
+<div class="config-block">
+  <h3>Graph</h3>
+  <p class="endpoint"><span class="method get">GET</span> /v1/graph/:namespace</p>
+  <p>Get the full dependency graph. Add <code>?format=yaml</code> for YAML output.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method put">PUT</span> /v1/graph/:namespace</p>
+  <p>Upload a YAML graph definition. Add <code>?prune=true</code> to remove nodes not in the YAML.</p>
+  <p>Content-Type: <code>application/yaml</code></p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /v1/graph/:namespace/:nodeId</p>
+  <p>Get the subgraph for a single node.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /v1/graph/:namespace/:nodeId/upstream</p>
+  <p class="endpoint"><span class="method get">GET</span> /v1/graph/:namespace/:nodeId/downstream</p>
+  <p>Get transitive upstream dependencies or downstream dependents.</p>
+</div>
+
+<div class="config-block">
+  <h3>Notifications</h3>
+  <p class="endpoint"><span class="method get">GET</span> /v1/notifications/:namespace</p>
+  <p>List notification rules.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method put">PUT</span> /v1/notifications/:namespace</p>
+  <p>Create or update a notification rule. Body (JSON):</p>
+  <ul>
+    <li><code>id</code> &mdash; rule identifier</li>
+    <li><code>url</code> &mdash; webhook URL</li>
+    <li><code>watch</code> &mdash; node ID or <code>*</code> for all (default: <code>*</code>)</li>
+    <li><code>on</code> &mdash; trigger state: <code>red</code>, <code>green</code>, <code>yellow</code>, comma-separated, or <code>*</code> (default: <code>red</code>)</li>
+    <li><code>secret</code> &mdash; HMAC-SHA256 signing secret</li>
+    <li><code>ack</code> &mdash; if true, suppresses after firing until acknowledged</li>
+  </ul>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method delete">DELETE</span> /v1/notifications/:namespace/:ruleId</p>
+  <p>Delete a notification rule.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method post">POST</span> /v1/notifications/:namespace/:ruleId/ack</p>
+  <p>Acknowledge (un-suppress) a notification rule so it can fire again.</p>
+</div>
+
+<div class="config-block">
+  <h3>Usage</h3>
+  <p class="endpoint"><span class="method get">GET</span> /v1/usage/:namespace</p>
+  <p>Get current usage stats and plan limits for a namespace.</p>
+</div>
