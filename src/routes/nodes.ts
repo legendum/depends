@@ -6,6 +6,7 @@ import { dispatchNotifications } from "../notify/dispatcher";
 
 interface NodeBody {
   state?: string;
+  reason?: string | null;
   label?: string;
   depends_on?: string[];
   ttl?: string | null;
@@ -107,6 +108,10 @@ export async function handlePutNode(
         setParts.push("state_changed_at = datetime('now')");
       }
     }
+    if (body.reason !== undefined) {
+      setParts.push("reason = ?");
+      params.push(body.reason);
+    }
     if (body.meta !== undefined) {
       setParts.push("meta = ?");
       params.push(JSON.stringify(body.meta));
@@ -125,13 +130,14 @@ export async function handlePutNode(
     }
   } else {
     db.query(
-      `INSERT INTO nodes (namespace, id, label, state, meta, ttl)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO nodes (namespace, id, label, state, reason, meta, ttl)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).run(
       namespace,
       nodeId,
       body.label ?? null,
       state,
+      body.reason ?? null,
       body.meta ? JSON.stringify(body.meta) : null,
       ttlSeconds ?? null
     );
@@ -277,6 +283,7 @@ function formatNode(
     namespace,
     state: node.state,
     effective_state: computeEffectiveState(db, namespace, nodeId),
+    reason: node.reason ?? null,
     label: node.label ?? null,
     depends_on: dependsOn.map((e) => e.to_node),
     depended_on_by: dependedOnBy.map((e) => e.from_node),

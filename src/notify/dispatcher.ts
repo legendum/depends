@@ -37,21 +37,23 @@ export function dispatchNotifications(
   nodeId: string,
   previousState: string | null,
   newState: string,
-  previousEffectiveState: string | null
+  previousEffectiveState: string | null,
+  reason?: string | null
 ): void {
   const newEffectiveState = computeEffectiveState(db, namespace, nodeId);
 
   // Record event for the changed node
   db.query(
-    `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     namespace,
     nodeId,
     previousState,
     newState,
     previousEffectiveState,
-    newEffectiveState
+    newEffectiveState,
+    reason ?? null
   );
 
   // Collect all nodes whose effective state may have changed
@@ -130,6 +132,11 @@ export function dispatchNotifications(
         continue;
       }
 
+      // Get the node's current reason
+      const nodeData = db
+        .query("SELECT reason FROM nodes WHERE namespace = ? AND id = ?")
+        .get(namespace, affected.id) as { reason: string | null } | null;
+
       const payload: WebhookPayload = {
         event: "effective_state_changed",
         namespace,
@@ -137,6 +144,7 @@ export function dispatchNotifications(
         state: affected.newEffective,
         effective_state: affected.newEffective,
         previous_effective_state: affected.prevEffective ?? "unknown",
+        reason: nodeData?.reason ?? null,
         triggered_rule: rule.id,
         timestamp: new Date().toISOString(),
       };

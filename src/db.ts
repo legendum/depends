@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,
+  reason      TEXT,  -- human/AI-readable reason for current state
   ttl         INTEGER,  -- seconds; null = no TTL
   last_state_write TEXT,  -- timestamp of last PUT /state, for TTL expiry
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS events (
   new_state   TEXT NOT NULL,
   previous_effective_state TEXT,
   new_effective_state TEXT NOT NULL,
+  reason      TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

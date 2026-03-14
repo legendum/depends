@@ -124,6 +124,17 @@ curl -X PUT https://api.depends.cc/v1/state/acme/api-server \
   -d "green"
 ```
 
+Optionally include a reason via the `X-Depends-Reason` header:
+
+```bash
+curl -X PUT https://api.depends.cc/v1/state/acme/api-server \
+  -H "Authorization: Bearer $DEPENDS_TOKEN" \
+  -H "X-Depends-Reason: disk full on /var/data" \
+  -d "red"
+```
+
+The reason is stored on the node and included in webhook payloads and event history. It answers "why is this red?" without digging through logs.
+
 ### Events (history)
 
 ```
@@ -226,6 +237,7 @@ depends.cc sends a `POST` to the URL with:
   "state": "red",
   "effective_state": "red",
   "previous_effective_state": "green",
+  "reason": "disk full on /var/data",
   "triggered_rule": "alert-on-red",
   "timestamp": "2026-03-14T10:30:00Z"
 }
