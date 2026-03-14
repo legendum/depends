@@ -50,7 +50,7 @@ Returns:
 ```json
 {
   "id": "acme",
-  "token": "dps_a1b2c3..."
+  "token": "dep_a1b2c3..."
 }
 ```
 
@@ -367,7 +367,7 @@ Configuration in `~/.depends/config.yml`:
 
 ```yaml
 default_namespace: myproject
-token: dps_...
+token: dep_...
 api_url: https://api.depends.cc/v1   # default, overridable for self-hosted
 ```
 

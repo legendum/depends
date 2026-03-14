@@ -1,6 +1,11 @@
 import { describe, test, expect } from "bun:test";
 import { createTestDb } from "../src/db";
 
+function insertNs(db: ReturnType<typeof createTestDb>, nsId: string = "test") {
+  db.query("INSERT OR IGNORE INTO tokens (id, token_hash) VALUES ('tok', 'hash')").run();
+  db.query(`INSERT INTO namespaces (id, token_id) VALUES (?, 'tok')`).run(nsId);
+}
+
 describe("database", () => {
   test("creates all tables", () => {
     const db = createTestDb();
@@ -8,6 +13,7 @@ describe("database", () => {
       .query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
       .all() as { name: string }[];
     const names = tables.map((t) => t.name);
+    expect(names).toContain("tokens");
     expect(names).toContain("namespaces");
     expect(names).toContain("nodes");
     expect(names).toContain("edges");
@@ -37,9 +43,7 @@ describe("database", () => {
 
   test("cascades deletes from namespace to nodes", () => {
     const db = createTestDb();
-    db.query(
-      "INSERT INTO namespaces (id, token_hash) VALUES ('test', 'hash')"
-    ).run();
+    insertNs(db);
     db.query(
       "INSERT INTO nodes (namespace, id, state) VALUES ('test', 'n1', 'green')"
     ).run();
@@ -53,9 +57,7 @@ describe("database", () => {
 
   test("cascades deletes from namespace to edges", () => {
     const db = createTestDb();
-    db.query(
-      "INSERT INTO namespaces (id, token_hash) VALUES ('test', 'hash')"
-    ).run();
+    insertNs(db);
     db.query(
       "INSERT INTO nodes (namespace, id, state) VALUES ('test', 'a', 'green')"
     ).run();
@@ -75,9 +77,7 @@ describe("database", () => {
 
   test("enforces state check constraint", () => {
     const db = createTestDb();
-    db.query(
-      "INSERT INTO namespaces (id, token_hash) VALUES ('test', 'hash')"
-    ).run();
+    insertNs(db);
     expect(() => {
       db.query(
         "INSERT INTO nodes (namespace, id, state) VALUES ('test', 'n1', 'invalid')"
@@ -88,9 +88,7 @@ describe("database", () => {
 
   test("enforces notification rule must have url or email", () => {
     const db = createTestDb();
-    db.query(
-      "INSERT INTO namespaces (id, token_hash) VALUES ('test', 'hash')"
-    ).run();
+    insertNs(db);
     expect(() => {
       db.query(
         `INSERT INTO notification_rules (namespace, id, on_state)
@@ -102,9 +100,7 @@ describe("database", () => {
 
   test("enforces notification rule cannot have both url and email", () => {
     const db = createTestDb();
-    db.query(
-      "INSERT INTO namespaces (id, token_hash) VALUES ('test', 'hash')"
-    ).run();
+    insertNs(db);
     expect(() => {
       db.query(
         `INSERT INTO notification_rules (namespace, id, on_state, url, email)

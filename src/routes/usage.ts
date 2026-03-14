@@ -2,7 +2,8 @@ import { Database } from "bun:sqlite";
 
 export function handleGetUsage(
   db: Database,
-  namespace: string
+  namespace: string,
+  plan: string
 ): Response {
   const now = new Date();
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -39,13 +40,9 @@ export function handleGetUsage(
     )
     .get(namespace) as { c: number };
 
-  const ns = db
-    .query("SELECT plan FROM namespaces WHERE id = ?")
-    .get(namespace) as { plan: string };
-
   return Response.json({
     namespace,
-    plan: ns.plan,
+    plan,
     period,
     nodes: totalNodes.c,
     active_nodes: activeNodes.c,

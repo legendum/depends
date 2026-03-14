@@ -5,10 +5,16 @@ PRAGMA journal_mode=WAL;
 PRAGMA busy_timeout=5000;
 PRAGMA foreign_keys=ON;
 
+CREATE TABLE IF NOT EXISTS tokens (
+  id          TEXT PRIMARY KEY,
+  token_hash  TEXT NOT NULL UNIQUE,
+  plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS namespaces (
   id          TEXT PRIMARY KEY,
-  token_hash  TEXT NOT NULL,
-  plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
+  token_id    TEXT NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -54,7 +60,7 @@ CREATE TABLE IF NOT EXISTS notification_rules (
 
 CREATE TABLE IF NOT EXISTS events (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  namespace   TEXT NOT NULL,
+  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
   node_id     TEXT NOT NULL,
   previous_state TEXT,
   new_state   TEXT NOT NULL,
@@ -72,11 +78,11 @@ CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(namespace, node_id, id);
 CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(namespace, to_node);
 `;
 
-export const PLAN_LIMITS: Record<string, { nodes: number; events: number }> = {
-  free: { nodes: 10, events: 100 },
-  pro: { nodes: 500, events: 50_000 },
-  team: { nodes: 5_000, events: 500_000 },
-  enterprise: { nodes: Infinity, events: Infinity },
+export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number }> = {
+  free: { nodes: 10, events: 100, namespaces: 1 },
+  pro: { nodes: 500, events: 5_000, namespaces: 5 },
+  team: { nodes: 5_000, events: 50_000, namespaces: 50 },
+  enterprise: { nodes: 100_000, events: 1_000_000, namespaces: 500 },
 };
 
 /**
@@ -96,7 +102,7 @@ export function parseTtl(ttl: string): number {
   }
 }
 
-export function createDb(path: string = "depends.db"): Database {
+export function createDb(path: string = "data/depends.db"): Database {
   const db = new Database(path);
   db.exec(SCHEMA);
   return db;

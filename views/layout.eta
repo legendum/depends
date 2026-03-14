@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<%~ include("partials/head", it) %>
+</head>
+<body>
+<%~ include("partials/header", it) %>
+<main>
+<%~ it.body %>
+</main>
+<%~ include("partials/footer", it) %>
+</body>
+</html>

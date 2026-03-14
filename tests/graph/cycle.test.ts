@@ -4,7 +4,8 @@ import { wouldCreateCycle } from "../../src/graph/cycle";
 
 function setup() {
   const db = createTestDb();
-  db.query("INSERT INTO namespaces (id, token_hash) VALUES ('ns', 'h')").run();
+  db.query("INSERT INTO tokens (id, token_hash) VALUES ('tok', 'h')").run();
+  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', 'tok')").run();
   return db;
 }
 

@@ -1,9 +1,23 @@
 import { Database } from "bun:sqlite";
 
+export interface AuthResult {
+  tokenId: string;
+  plan: string;
+}
+
+/** Well-known token for local development — no signup needed, no limits. */
+export const LOCAL_TOKEN = "dep_local";
+const LOCAL_AUTH: AuthResult = { tokenId: "local", plan: "enterprise" };
+
 export function generateToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   const encoded = Buffer.from(bytes).toString("base64url");
-  return `dps_${encoded}`;
+  return `dep_${encoded}`;
+}
+
+export function generateTokenId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Buffer.from(bytes).toString("hex");
 }
 
 export async function hashToken(token: string): Promise<string> {
@@ -12,15 +26,45 @@ export async function hashToken(token: string): Promise<string> {
   return Buffer.from(hash).toString("hex");
 }
 
+/**
+ * Verify a bearer token and check it owns the given namespace.
+ * Returns { tokenId, plan } on success, null on failure.
+ * If isLocal is true, accepts the well-known LOCAL_TOKEN with no limits.
+ */
 export async function verifyToken(
   db: Database,
   namespace: string,
-  token: string
-): Promise<boolean> {
-  const row = db
-    .query("SELECT token_hash FROM namespaces WHERE id = ?")
-    .get(namespace) as { token_hash: string } | null;
-  if (!row) return false;
+  token: string,
+  isLocal: boolean = false
+): Promise<AuthResult | null> {
+  if (isLocal && token === LOCAL_TOKEN) return LOCAL_AUTH;
   const hash = await hashToken(token);
-  return hash === row.token_hash;
+  const row = db
+    .query(
+      `SELECT t.id, t.plan FROM tokens t
+       JOIN namespaces n ON n.token_id = t.id
+       WHERE t.token_hash = ? AND n.id = ?`
+    )
+    .get(hash, namespace) as { id: string; plan: string } | null;
+  if (!row) return null;
+  return { tokenId: row.id, plan: row.plan };
+}
+
+/**
+ * Verify a bearer token without checking namespace ownership.
+ * Used for endpoints like POST /namespaces where the namespace doesn't exist yet.
+ * If isLocal is true, accepts the well-known LOCAL_TOKEN with no limits.
+ */
+export async function verifyTokenOnly(
+  db: Database,
+  token: string,
+  isLocal: boolean = false
+): Promise<AuthResult | null> {
+  if (isLocal && token === LOCAL_TOKEN) return LOCAL_AUTH;
+  const hash = await hashToken(token);
+  const row = db
+    .query("SELECT id, plan FROM tokens WHERE token_hash = ?")
+    .get(hash) as { id: string; plan: string } | null;
+  if (!row) return null;
+  return { tokenId: row.id, plan: row.plan };
 }

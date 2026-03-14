@@ -1,7 +1,10 @@
 import { Database } from "bun:sqlite";
+import { Elysia } from "elysia";
+import { join } from "path";
 import { createDb } from "./db";
-import { verifyToken } from "./auth";
-import { handleCreateNamespace, handleDeleteNamespace } from "./routes/namespaces";
+import { verifyToken, verifyTokenOnly, LOCAL_TOKEN, type AuthResult } from "./auth";
+import { render } from "./render";
+import { handleSignup, handleCreateNamespace, handleDeleteNamespace } from "./routes/namespaces";
 import { handlePutNode, handleGetNode, handleDeleteNode, handleListNodes } from "./routes/nodes";
 import { handlePutState } from "./routes/state";
 import { handleGetEvents } from "./routes/events";
@@ -11,107 +14,171 @@ import { handleGetUsage } from "./routes/usage";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
-export function createServer(db: Database, port: number = PORT) {
-  return Bun.serve({
-    port,
-    async fetch(req) {
-      const url = new URL(req.url);
-      const path = url.pathname;
-      const method = req.method;
+const PUBLIC_DIR = join(import.meta.dir, "..", "public");
 
-      // Route: POST /v1/namespaces (unauthenticated)
-      if (path === "/v1/namespaces" && method === "POST") {
-        return handleCreateNamespace(db, req);
-      }
+/** Extract bearer token from request, returning 401 response on failure */
+function extractBearer(request: Request): string | Response {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return Response.json({ error: "Missing authorization." }, { status: 401 });
+  }
+  return authHeader.slice(7);
+}
 
-      // All other routes require auth
-      const segments = path.split("/").filter(Boolean);
-      // segments[0] = "v1", segments[1] = resource, segments[2] = namespace, ...
+const LOCALHOST_ADDRS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
 
-      if (segments[0] !== "v1" || segments.length < 3) {
-        return Response.json({ error: "Not found." }, { status: 404 });
-      }
+/** Check if request comes from localhost (supports X-Forwarded-For behind reverse proxy) */
+function isLocalRequest(request: Request, server: unknown): boolean {
+  // Check X-Forwarded-For first (reverse proxy)
+  const forwarded = request.headers.get("X-Forwarded-For");
+  if (forwarded) {
+    const clientIp = forwarded.split(",")[0].trim();
+    return LOCALHOST_ADDRS.has(clientIp);
+  }
+  // Fall back to direct connection IP
+  if (!server || typeof (server as Record<string, unknown>).requestIP !== "function") return false;
+  const ip = (server as { requestIP(req: Request): { address: string } | null }).requestIP(request);
+  return ip ? LOCALHOST_ADDRS.has(ip.address) : false;
+}
 
-      const resource = segments[1];
-      const namespace = segments[2];
+/** Ensure the well-known local token and namespace exist for dep_local auth. */
+function ensureLocalToken(db: Database) {
+  db.query(
+    "INSERT OR IGNORE INTO tokens (id, token_hash, plan) VALUES ('local', 'local', 'enterprise')"
+  ).run();
+}
 
-      // Verify auth
-      const authHeader = req.headers.get("Authorization");
-      if (!authHeader?.startsWith("Bearer ")) {
-        return Response.json({ error: "Missing authorization." }, { status: 401 });
-      }
-      const token = authHeader.slice(7);
-      const valid = await verifyToken(db, namespace, token);
-      if (!valid) {
-        return Response.json({ error: "Invalid token." }, { status: 401 });
-      }
+export function createApp(db: Database) {
+  ensureLocalToken(db);
 
-      // Route dispatch
-      switch (resource) {
-        case "namespaces": {
-          if (method === "DELETE" && segments.length === 3) {
-            return handleDeleteNamespace(db, namespace);
+  const app = new Elysia()
+    // Static files
+    .get("/favicon.png", () => Bun.file(join(PUBLIC_DIR, "favicon.png")))
+    .get("/logo.png", () => Bun.file(join(PUBLIC_DIR, "logo.png")))
+
+    // Homepage
+    .get("/", () => render("index", { title: "depends.cc — dependency state tracking" }))
+
+    // Unauthenticated: signup (creates a token)
+    .post("/v1/signup", ({ request }) => handleSignup(db, request))
+
+    // Token-only auth: create namespace (namespace doesn't exist yet)
+    .post("/v1/namespaces", async ({ request, server }) => {
+      const bearer = extractBearer(request);
+      if (bearer instanceof Response) return bearer;
+      const local = isLocalRequest(request, server);
+      const auth = await verifyTokenOnly(db, bearer, local);
+      if (!auth) return Response.json({ error: "Invalid token." }, { status: 401 });
+      return handleCreateNamespace(db, request, auth.tokenId, auth.plan);
+    })
+
+    // Namespace-scoped auth: all other routes
+    .guard(
+      {
+        async beforeHandle({ request, params, store, server }) {
+          const ns = (params as Record<string, string>).namespace;
+          const bearer = extractBearer(request);
+          if (bearer instanceof Response) return bearer;
+          const local = isLocalRequest(request, server);
+          if (local && bearer === LOCAL_TOKEN) {
+            // Auto-create namespace for local dev
+            db.query("INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 'local')").run(ns);
           }
-          break;
-        }
+          const auth = await verifyToken(db, ns, bearer, local);
+          if (!auth) return Response.json({ error: "Invalid token." }, { status: 401 });
+          (store as Record<string, unknown>).auth = auth;
+        },
+      },
+      (app) =>
+        app
+          // Namespaces
+          .delete("/v1/namespaces/:namespace", ({ params }) =>
+            handleDeleteNamespace(db, params.namespace)
+          )
 
-        case "nodes": {
-          const nodeId = segments[3];
-          if (method === "GET" && !nodeId) return handleListNodes(db, namespace);
-          if (method === "GET" && nodeId) return handleGetNode(db, namespace, nodeId);
-          if (method === "PUT" && nodeId) return handlePutNode(db, namespace, nodeId, req);
-          if (method === "DELETE" && nodeId) return handleDeleteNode(db, namespace, nodeId);
-          break;
-        }
+          // Nodes
+          .get("/v1/nodes/:namespace", ({ params }) =>
+            handleListNodes(db, params.namespace)
+          )
+          .get("/v1/nodes/:namespace/:nodeId", ({ params }) =>
+            handleGetNode(db, params.namespace, params.nodeId)
+          )
+          .put("/v1/nodes/:namespace/:nodeId", ({ params, request, store }) =>
+            handlePutNode(db, params.namespace, params.nodeId, request, (store as { auth: AuthResult }).auth.plan)
+          )
+          .delete("/v1/nodes/:namespace/:nodeId", ({ params }) =>
+            handleDeleteNode(db, params.namespace, params.nodeId)
+          )
 
-        case "state": {
-          const nodeId = segments[3];
-          const stateSegment = segments[4];
-          if (method === "PUT" && nodeId && stateSegment) return handlePutState(db, namespace, nodeId, stateSegment, req);
-          break;
-        }
+          // State shorthand
+          .put("/v1/state/:namespace/:nodeId/:state", ({ params, request, store }) =>
+            handlePutState(db, params.namespace, params.nodeId, params.state, request, (store as { auth: AuthResult }).auth.plan)
+          )
 
-        case "events": {
-          const nodeId = segments[3] ?? null;
-          if (method === "GET") return handleGetEvents(db, namespace, nodeId, url);
-          break;
-        }
+          // Events
+          .get("/v1/events/:namespace", ({ params, request }) =>
+            handleGetEvents(db, params.namespace, null, new URL(request.url))
+          )
+          .get("/v1/events/:namespace/:nodeId", ({ params, request }) =>
+            handleGetEvents(db, params.namespace, params.nodeId, new URL(request.url))
+          )
 
-        case "graph": {
-          const nodeId = segments[3];
-          const sub = segments[4];
-          if (method === "PUT" && !nodeId) return handlePutGraph(db, namespace, req);
-          if (method === "GET" && !nodeId) return handleGetGraph(db, namespace, url);
-          if (method === "GET" && nodeId && sub === "upstream") return handleGetUpstream(db, namespace, nodeId);
-          if (method === "GET" && nodeId && sub === "downstream") return handleGetDownstream(db, namespace, nodeId);
-          if (method === "GET" && nodeId) return handleGetSubgraph(db, namespace, nodeId);
-          break;
-        }
+          // Graph
+          .get("/v1/graph/:namespace", ({ params, request }) =>
+            handleGetGraph(db, params.namespace, new URL(request.url))
+          )
+          .put("/v1/graph/:namespace", ({ params, request }) =>
+            handlePutGraph(db, params.namespace, request)
+          )
+          .get("/v1/graph/:namespace/:nodeId", ({ params }) =>
+            handleGetSubgraph(db, params.namespace, params.nodeId)
+          )
+          .get("/v1/graph/:namespace/:nodeId/upstream", ({ params }) =>
+            handleGetUpstream(db, params.namespace, params.nodeId)
+          )
+          .get("/v1/graph/:namespace/:nodeId/downstream", ({ params }) =>
+            handleGetDownstream(db, params.namespace, params.nodeId)
+          )
 
-        case "notifications": {
-          const ruleId = segments[3];
-          const action = segments[4];
-          if (method === "PUT" && !ruleId) return handlePutNotification(db, namespace, req);
-          if (method === "GET" && !ruleId) return handleListNotifications(db, namespace);
-          if (method === "DELETE" && ruleId && !action) return handleDeleteNotification(db, namespace, ruleId);
-          if (method === "POST" && ruleId && action === "ack") return handleAckNotification(db, namespace, ruleId);
-          break;
-        }
+          // Notifications
+          .get("/v1/notifications/:namespace", ({ params }) =>
+            handleListNotifications(db, params.namespace)
+          )
+          .put("/v1/notifications/:namespace", ({ params, request }) =>
+            handlePutNotification(db, params.namespace, request)
+          )
+          .delete("/v1/notifications/:namespace/:ruleId", ({ params }) =>
+            handleDeleteNotification(db, params.namespace, params.ruleId)
+          )
+          .post("/v1/notifications/:namespace/:ruleId/ack", ({ params }) =>
+            handleAckNotification(db, params.namespace, params.ruleId)
+          )
 
-        case "usage": {
-          if (method === "GET") return handleGetUsage(db, namespace);
-          break;
-        }
-      }
+          // Usage
+          .get("/v1/usage/:namespace", ({ params, store }) =>
+            handleGetUsage(db, params.namespace, (store as { auth: AuthResult }).auth.plan)
+          )
+    );
 
-      return Response.json({ error: "Not found." }, { status: 404 });
+  return app;
+}
+
+export function createServer(db: Database, port: number = PORT) {
+  const app = createApp(db);
+  const instance = app.listen(port);
+
+  return {
+    port: instance.server!.port,
+    stop(closeActiveConnections?: boolean) {
+      instance.stop(closeActiveConnections);
     },
-  });
+    app: instance,
+  };
 }
 
 // Start server if run directly
 if (import.meta.main) {
-  const db = createDb();
+  const db = createDb(join(import.meta.dir, "..", "data", "depends.db"));
   const server = createServer(db, PORT);
   console.log(`depends.cc listening on http://localhost:${server.port}`);
 }

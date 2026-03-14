@@ -14,18 +14,15 @@ interface NodeBody {
   meta?: Record<string, unknown>;
 }
 
-function checkNodeLimit(db: Database, namespace: string): Response | null {
-  const ns = db
-    .query("SELECT plan FROM namespaces WHERE id = ?")
-    .get(namespace) as { plan: string };
-  const limits = PLAN_LIMITS[ns.plan];
+function checkNodeLimit(db: Database, namespace: string, plan: string): Response | null {
+  const limits = PLAN_LIMITS[plan];
   const count = db
     .query("SELECT COUNT(*) as c FROM nodes WHERE namespace = ?")
     .get(namespace) as { c: number };
   if (count.c >= limits.nodes) {
     return Response.json(
       {
-        error: `Node limit reached for ${ns.plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.`,
+        error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.`,
       },
       { status: 402 }
     );
@@ -33,11 +30,8 @@ function checkNodeLimit(db: Database, namespace: string): Response | null {
   return null;
 }
 
-function checkEventLimit(db: Database, namespace: string): Response | null {
-  const ns = db
-    .query("SELECT plan FROM namespaces WHERE id = ?")
-    .get(namespace) as { plan: string };
-  const limits = PLAN_LIMITS[ns.plan];
+function checkEventLimit(db: Database, namespace: string, plan: string): Response | null {
+  const limits = PLAN_LIMITS[plan];
   const count = db
     .query(
       `SELECT COUNT(*) as c FROM events
@@ -47,7 +41,7 @@ function checkEventLimit(db: Database, namespace: string): Response | null {
   if (count.c >= limits.events) {
     return Response.json(
       {
-        error: `Event limit reached for ${ns.plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
+        error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
       },
       { status: 402 }
     );
@@ -59,8 +53,14 @@ export async function handlePutNode(
   db: Database,
   namespace: string,
   nodeId: string,
-  req: Request
+  req: Request,
+  plan: string
 ): Promise<Response> {
+  // Validate node ID
+  if (nodeId.includes("/")) {
+    return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
+  }
+
   const body = (await req.json()) as NodeBody;
 
   const existing = db
@@ -68,7 +68,7 @@ export async function handlePutNode(
     .get(namespace, nodeId) as { state: string } | null;
 
   if (!existing) {
-    const limitErr = checkNodeLimit(db, namespace);
+    const limitErr = checkNodeLimit(db, namespace, plan);
     if (limitErr) return limitErr;
   }
 
@@ -164,7 +164,7 @@ export async function handlePutNode(
         .get(namespace, dep);
 
       if (!depExists) {
-        const limitErr = checkNodeLimit(db, namespace);
+        const limitErr = checkNodeLimit(db, namespace, plan);
         if (limitErr) return limitErr;
         db.query(
           "INSERT INTO nodes (namespace, id, state) VALUES (?, ?, 'yellow')"
@@ -186,7 +186,7 @@ export async function handlePutNode(
 
   // Dispatch notifications on state change
   if (stateChanged) {
-    const eventLimitErr = checkEventLimit(db, namespace);
+    const eventLimitErr = checkEventLimit(db, namespace, plan);
     if (eventLimitErr) return eventLimitErr;
 
     const prevEffective = prevState

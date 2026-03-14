@@ -37,14 +37,16 @@
 - [ ] Deploy to depends.cc — server process, SQLite file on disk, HTTPS via reverse proxy
 
 ### CLI tool
-- [ ] `depends init` — scaffold `depends.yml`
-- [ ] `depends push` — upload YAML to API
-- [ ] `depends pull` — download graph as YAML
-- [ ] `depends status` — show node states with effective states (color-coded)
-- [ ] `depends set <node> <state>` — shorthand for PUT /state
-- [ ] `depends graph` — ASCII tree rendering
-- [ ] `depends validate` — check for cycles, missing refs
-- [ ] `depends diff` — show what would change on push
+- [x] `depends init` — scaffold `depends.yml`
+- [x] `depends push` — upload YAML to API (with `--prune` support)
+- [x] `depends pull` — download graph as YAML
+- [x] `depends status` — show node states with effective states (color-coded)
+- [x] `depends set <node> <state>` — shorthand for PUT /state (with `--reason` and `--solution`)
+- [x] `depends graph` — ASCII tree rendering
+- [x] `depends validate` — check for cycles, missing refs (offline, no server needed)
+- [x] `depends diff` — show what would change on push
+- [x] Config — `~/.depends/config.yml`, env vars (`DEPENDS_TOKEN`, `DEPENDS_NAMESPACE`, `DEPENDS_API_URL`), `-n` flag, auto-detect from `depends.yml`
+- [x] Tests — 28 tests covering all commands, config, and error cases
 - [ ] Build binaries — macOS ARM/x86, Linux ARM/x86
 
 ### MCP server
@@ -64,7 +66,7 @@
     on: [red, green]
     url: https://api.depends.cc/v1/state/boss/fitpass/{{effective_state}}
     headers:
-      Authorization: "Bearer dps_boss_token_here"
+      Authorization: "Bearer dep_boss_token_here"
       X-Custom-Header: "optional"
   ```
   The `{{effective_state}}` template variable is resolved at fire time. This makes depends.cc its own webhook target — no glue code, no intermediary.

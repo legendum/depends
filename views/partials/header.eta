@@ -1,0 +1,4 @@
+<header>
+  <a href="/"><img src="/logo.png" alt="depends.cc"></a>
+  <p><%= it.subtitle ?? "Lightweight dependency state tracking. Push state in, get webhooks out." %></p>
+</header>

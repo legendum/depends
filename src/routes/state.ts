@@ -10,8 +10,14 @@ export async function handlePutState(
   namespace: string,
   nodeId: string,
   state: string,
-  req: Request
+  req: Request,
+  plan: string
 ): Promise<Response> {
+  // Validate node ID
+  if (nodeId.includes("/")) {
+    return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
+  }
+
   const reason = req.headers.get("X-Depends-Reason");
   const solution = req.headers.get("X-Depends-Solution");
 
@@ -26,19 +32,17 @@ export async function handlePutState(
     .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")
     .get(namespace, nodeId) as { state: string } | null;
 
+  const limits = PLAN_LIMITS[plan];
+
   // Auto-create node if it doesn't exist
   if (!existing) {
-    const ns = db
-      .query("SELECT plan FROM namespaces WHERE id = ?")
-      .get(namespace) as { plan: string };
-    const limits = PLAN_LIMITS[ns.plan];
     const count = db
       .query("SELECT COUNT(*) as c FROM nodes WHERE namespace = ?")
       .get(namespace) as { c: number };
     if (count.c >= limits.nodes) {
       return Response.json(
         {
-          error: `Node limit reached for ${ns.plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.`,
+          error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.`,
         },
         { status: 402 }
       );
@@ -47,7 +51,6 @@ export async function handlePutState(
     db.query(
       "INSERT INTO nodes (namespace, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))"
     ).run(namespace, nodeId, state, reason, solution);
-
 
     // Check event limit
     const eventCount = db
@@ -59,7 +62,7 @@ export async function handlePutState(
     if (eventCount.c >= limits.events) {
       return Response.json(
         {
-          error: `Event limit reached for ${ns.plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
+          error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
         },
         { status: 402 }
       );
@@ -78,10 +81,6 @@ export async function handlePutState(
   }
 
   // Check event limit
-  const ns = db
-    .query("SELECT plan FROM namespaces WHERE id = ?")
-    .get(namespace) as { plan: string };
-  const limits = PLAN_LIMITS[ns.plan];
   const eventCount = db
     .query(
       `SELECT COUNT(*) as c FROM events
@@ -91,7 +90,7 @@ export async function handlePutState(
   if (eventCount.c >= limits.events) {
     return Response.json(
       {
-        error: `Event limit reached for ${ns.plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
+        error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
       },
       { status: 402 }
     );

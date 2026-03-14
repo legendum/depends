@@ -3,14 +3,14 @@ import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
 import type { Server } from "bun";
 
-let server: Server;
+let server: ReturnType<typeof createServer>;
 let baseUrl: string;
 let token: string;
 const NS = "test-ns";
 
 beforeAll(async () => {
   const db = createTestDb();
-  server = createServer(db, 0); // random port
+  server = createServer(db, 0);
   baseUrl = `http://localhost:${server.port}/v1`;
 });
 
@@ -53,25 +53,29 @@ async function api(
   return res;
 }
 
-describe("namespaces", () => {
-  test("create namespace returns token", async () => {
+describe("signup and namespaces", () => {
+  test("signup returns a token", async () => {
+    const res = await api("/signup", { method: "POST", auth: false });
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.token).toMatch(/^dep_/);
+    token = data.token;
+  });
+
+  test("create namespace with token", async () => {
     const res = await api("/namespaces", {
       method: "POST",
       body: { id: NS },
-      auth: false,
     });
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.id).toBe(NS);
-    expect(data.token).toMatch(/^dps_/);
-    token = data.token;
   });
 
   test("duplicate namespace returns 409", async () => {
     const res = await api("/namespaces", {
       method: "POST",
       body: { id: NS },
-      auth: false,
     });
     expect(res.status).toBe(409);
   });
@@ -80,9 +84,17 @@ describe("namespaces", () => {
     const res = await api("/namespaces", {
       method: "POST",
       body: { id: "INVALID!" },
-      auth: false,
     });
     expect(res.status).toBe(400);
+  });
+
+  test("create namespace without token returns 401", async () => {
+    const res = await api("/namespaces", {
+      method: "POST",
+      body: { id: "no-auth" },
+      auth: false,
+    });
+    expect(res.status).toBe(401);
   });
 });
 
@@ -94,8 +106,13 @@ describe("auth", () => {
 
   test("wrong token returns 401", async () => {
     const res = await fetch(`${baseUrl}/nodes/${NS}`, {
-      headers: { Authorization: "Bearer dps_wrong" },
+      headers: { Authorization: "Bearer dep_wrong" },
     });
+    expect(res.status).toBe(401);
+  });
+
+  test("valid token but wrong namespace returns 401", async () => {
+    const res = await api(`/nodes/nonexistent-ns`);
     expect(res.status).toBe(401);
   });
 });
@@ -113,6 +130,14 @@ describe("nodes", () => {
     expect(data.effective_state).toBe("green");
     expect(data.label).toBe("PostgreSQL");
     expect(data.meta.host).toBe("db.local");
+  });
+
+  test("reject node ID with slash", async () => {
+    const res = await api(`/nodes/${NS}/bad%2Fid`, {
+      method: "PUT",
+      body: { state: "green" },
+    });
+    expect(res.status).toBe(400);
   });
 
   test("get a node", async () => {
@@ -519,8 +544,6 @@ describe("notifications", () => {
   });
 
   test("ack re-arms suppressed rule", async () => {
-    // Manually suppress the email rule by changing state to trigger it
-    // First, let's suppress it directly via the DB... actually let's test the ack endpoint
     const res = await api(`/notifications/${NS}/test-email/ack`, {
       method: "POST",
     });
@@ -564,14 +587,35 @@ describe("plan limits", () => {
   let limitToken: string;
   const limitNs = "limit-test";
 
-  test("setup: create namespace", async () => {
-    const res = await api("/namespaces", {
+  test("setup: signup and create namespace", async () => {
+    // Signup to get a new token
+    const signupRes = await api("/signup", { method: "POST", auth: false });
+    const signupData = await signupRes.json();
+    limitToken = signupData.token;
+
+    // Create namespace
+    const res = await fetch(`${baseUrl}/namespaces`, {
       method: "POST",
-      body: { id: limitNs },
-      auth: false,
+      headers: {
+        Authorization: `Bearer ${limitToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id: limitNs }),
     });
-    const data = await res.json();
-    limitToken = data.token;
+    expect(res.status).toBe(201);
+  });
+
+  test("namespace limit enforced on free plan", async () => {
+    // Free plan = 1 namespace. Already created one, so second should fail.
+    const res = await fetch(`${baseUrl}/namespaces`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${limitToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id: "limit-test-2" }),
+    });
+    expect(res.status).toBe(402);
   });
 
   test("node limit enforced on free plan", async () => {
@@ -611,13 +655,19 @@ describe("plan limits", () => {
 
 describe("namespace deletion", () => {
   test("delete cascades everything", async () => {
-    // Create a fresh namespace
-    const createRes = await api("/namespaces", {
+    // Signup and create a fresh namespace
+    const signupRes = await api("/signup", { method: "POST", auth: false });
+    const { token: delToken } = await signupRes.json();
+
+    const createRes = await fetch(`${baseUrl}/namespaces`, {
       method: "POST",
-      body: { id: "to-delete" },
-      auth: false,
+      headers: {
+        Authorization: `Bearer ${delToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ id: "to-delete" }),
     });
-    const { token: delToken } = await createRes.json();
+    expect(createRes.status).toBe(201);
 
     // Add a node
     await fetch(`${baseUrl}/nodes/to-delete/mynode`, {

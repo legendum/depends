@@ -7,7 +7,8 @@ let db: Database;
 
 function setup() {
   db = createTestDb();
-  db.query("INSERT INTO namespaces (id, token_hash) VALUES ('ns', 'h')").run();
+  db.query("INSERT INTO tokens (id, token_hash) VALUES ('tok', 'h')").run();
+  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', 'tok')").run();
 }
 
 function addNode(id: string, state: string = "green") {

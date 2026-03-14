@@ -28,7 +28,7 @@ Flow: open `depends.cc/ns/acme` → 401 → enter username `acme`, password (tok
 ### Auth details
 
 - **Username** = namespace (must match the `<namespace>` in the path, or the server derives namespace from the path and accepts token as password).
-- **Password** = the namespace token (e.g. `dps_abc123...`).
+- **Password** = the namespace token (e.g. `dep_abc123...`).
 - **Transport** = HTTPS only.
 
 Caveats:
