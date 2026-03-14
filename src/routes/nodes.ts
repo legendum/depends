@@ -7,6 +7,7 @@ import { dispatchNotifications } from "../notify/dispatcher";
 interface NodeBody {
   state?: string;
   reason?: string | null;
+  solution?: string | null;
   label?: string;
   depends_on?: string[];
   ttl?: string | null;
@@ -112,6 +113,10 @@ export async function handlePutNode(
       setParts.push("reason = ?");
       params.push(body.reason);
     }
+    if (body.solution !== undefined) {
+      setParts.push("solution = ?");
+      params.push(body.solution);
+    }
     if (body.meta !== undefined) {
       setParts.push("meta = ?");
       params.push(JSON.stringify(body.meta));
@@ -130,14 +135,15 @@ export async function handlePutNode(
     }
   } else {
     db.query(
-      `INSERT INTO nodes (namespace, id, label, state, reason, meta, ttl)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO nodes (namespace, id, label, state, reason, solution, meta, ttl)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       namespace,
       nodeId,
       body.label ?? null,
       state,
       body.reason ?? null,
+      body.solution ?? null,
       body.meta ? JSON.stringify(body.meta) : null,
       ttlSeconds ?? null
     );
@@ -193,7 +199,9 @@ export async function handlePutNode(
       nodeId,
       prevState,
       state,
-      prevEffective
+      prevEffective,
+      body.reason ?? null,
+      body.solution ?? null
     );
   }
 
@@ -284,6 +292,7 @@ function formatNode(
     state: node.state,
     effective_state: computeEffectiveState(db, namespace, nodeId),
     reason: node.reason ?? null,
+    solution: node.solution ?? null,
     label: node.label ?? null,
     depends_on: dependsOn.map((e) => e.to_node),
     depended_on_by: dependedOnBy.map((e) => e.from_node),

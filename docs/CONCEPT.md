@@ -99,12 +99,14 @@ All fields optional on update (patch semantics). `depends_on` references other n
     "url": "https://pay.example.com",
     "owner": "backend-team"
   },
+  "reason": "disk full on /var/data",
+  "solution": "Check disk usage (df -h), clear logs, expand volume.",
   "state_changed_at": "2026-03-14T10:30:00Z",
   "updated_at": "2026-03-14T10:30:00Z"
 }
 ```
 
-Note: `effective_state` is `red` here because a dependency (e.g., `database`) is red, even though this node's own `state` is `green`.
+Note: `effective_state` is `red` here because a dependency (e.g., `database`) is red, even though this node's own `state` is `green`. `reason` and `solution` are optional values set via the `X-Depends-Reason` and `X-Depends-Solution` headers on state updates.
 
 ### State (shorthand)
 
@@ -121,15 +123,16 @@ curl -X PUT https://api.depends.cc/v1/state/acme/api-server/green \
   -H "Authorization: Bearer $DEPENDS_TOKEN"
 ```
 
-Optionally include a reason via the `X-Depends-Reason` header:
+Optionally include a reason and a recommended solution via headers (the caller knows both):
 
 ```bash
 curl -X PUT https://api.depends.cc/v1/state/acme/api-server/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data"
+  -H "X-Depends-Reason: disk full on /var/data" \
+  -H "X-Depends-Solution: Check disk usage (df -h), clear logs, expand volume."
 ```
 
-The reason is stored on the node and included in webhook payloads and event history. It answers "why is this red?" without digging through logs.
+`reason` and `solution` are stored on the node and included in webhook payloads and event history. They answer "why is this red?" and "what should I do?"
 
 ### Events (history)
 
@@ -141,6 +144,7 @@ GET /events/{namespace}/{node-id}          — Events for a specific node
 Query params:
 - `?since=2026-03-14T00:00:00Z` — Events after this timestamp
 - `?limit=100` — Max events to return (default 100, max 1000)
+- `?order=desc` — Newest first (default is oldest first)
 
 ```json
 {
@@ -152,6 +156,8 @@ Query params:
       "new_state": "red",
       "previous_effective_state": "green",
       "new_effective_state": "red",
+      "reason": "disk full on /var/data",
+      "solution": "Check disk usage (df -h), clear logs, expand volume.",
       "created_at": "2026-03-14T10:30:00Z"
     }
   ]
@@ -175,10 +181,10 @@ GET /graph/{namespace}/{node-id}/downstream — What depends on this node? (tran
 {
   "namespace": "acme",
   "nodes": [
-    { "id": "database", "state": "red", "effective_state": "red" },
-    { "id": "auth-service", "state": "green", "effective_state": "green" },
-    { "id": "payment-service", "state": "green", "effective_state": "red" },
-    { "id": "checkout-flow", "state": "green", "effective_state": "red" }
+    { "id": "database", "state": "red", "effective_state": "red", "label": "PostgreSQL Primary", "reason": "disk full on /var/data", "solution": "Check disk usage (df -h), clear logs, expand volume." },
+    { "id": "auth-service", "state": "green", "effective_state": "green", "label": "Auth Service", "reason": null, "solution": null },
+    { "id": "payment-service", "state": "green", "effective_state": "red", "label": "Payment Service", "reason": null, "solution": null },
+    { "id": "checkout-flow", "state": "green", "effective_state": "red", "label": "Checkout Flow", "reason": null, "solution": null }
   ],
   "edges": [
     { "from": "payment-service", "to": "database" },
@@ -234,6 +240,7 @@ depends.cc sends a `POST` to the URL with:
   "effective_state": "red",
   "previous_effective_state": "green",
   "reason": "disk full on /var/data",
+  "solution": "Check disk usage (df -h), clear logs, expand volume.",
   "triggered_rule": "alert-on-red",
   "timestamp": "2026-03-14T10:30:00Z"
 }
@@ -489,6 +496,8 @@ CREATE TABLE nodes (
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,  -- JSON
+  reason      TEXT,
+  solution    TEXT,
   ttl         INTEGER,  -- seconds; null = no TTL
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -529,6 +538,8 @@ CREATE TABLE events (
   new_state   TEXT NOT NULL,
   previous_effective_state TEXT,
   new_effective_state TEXT NOT NULL,
+  reason      TEXT,
+  solution    TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

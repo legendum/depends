@@ -112,12 +112,15 @@ function buildGraph(
 ) {
   const allNodes = db
     .query("SELECT * FROM nodes WHERE namespace = ? ORDER BY id")
-    .all(namespace) as { id: string; state: string }[];
+    .all(namespace) as { id: string; state: string; label?: string | null; reason?: string | null; solution?: string | null }[];
 
   const nodes = allNodes.map((n) => ({
     id: n.id,
     state: n.state,
     effective_state: computeEffectiveState(db, namespace, n.id),
+    label: n.label ?? null,
+    reason: n.reason ?? null,
+    solution: n.solution ?? null,
   }));
 
   const filteredNodes = stateFilter
@@ -151,13 +154,16 @@ function buildGraphForNodes(
   const nodes = [];
   for (const id of nodeIds) {
     const node = db
-      .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")
-      .get(namespace, id) as { state: string } | null;
+      .query("SELECT state, label, reason, solution FROM nodes WHERE namespace = ? AND id = ?")
+      .get(namespace, id) as { state: string; label?: string | null; reason?: string | null; solution?: string | null } | null;
     if (node) {
       nodes.push({
         id,
         state: node.state,
         effective_state: computeEffectiveState(db, namespace, id),
+        label: node.label ?? null,
+        reason: node.reason ?? null,
+        solution: node.solution ?? null,
       });
     }
   }

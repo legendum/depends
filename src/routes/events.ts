@@ -25,7 +25,8 @@ export function handleGetEvents(
     params.push(since);
   }
 
-  query += ` ORDER BY id ASC LIMIT ?`;
+  const order = url.searchParams.get("order") === "desc" ? "DESC" : "ASC";
+  query += ` ORDER BY id ${order} LIMIT ?`;
   params.push(limit);
 
   const events = db.query(query).all(...params);

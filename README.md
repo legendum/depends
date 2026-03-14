@@ -37,7 +37,7 @@ curl -X PUT http://localhost:3000/v1/state/myproject/api-server/green \
 |------|-----------|
 | **Namespaces** | `POST /namespaces`, `DELETE /namespaces/{id}` |
 | **Nodes** | `PUT/GET/DELETE /nodes/{ns}/{id}`, `GET /nodes/{ns}` |
-| **State shorthand** | `PUT /state/{ns}/{id}/{state}` — state in path: `green`, `yellow`, `red` (no body) |
+| **State shorthand** | `PUT /state/{ns}/{id}/{state}` — state in path (no body). Optional headers: `X-Depends-Reason`, `X-Depends-Solution` |
 | **Graph** | `GET /graph/{ns}`, subgraph, upstream, downstream, `?format=yaml` |
 | **Events** | `GET /events/{ns}` — state transition history |
 | **Notifications** | `PUT/GET/DELETE /notifications/{ns}` — webhooks and email rules |

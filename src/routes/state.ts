@@ -13,6 +13,7 @@ export async function handlePutState(
   req: Request
 ): Promise<Response> {
   const reason = req.headers.get("X-Depends-Reason");
+  const solution = req.headers.get("X-Depends-Solution");
 
   if (!VALID_STATES.includes(state as (typeof VALID_STATES)[number])) {
     return Response.json(
@@ -44,8 +45,9 @@ export async function handlePutState(
     }
 
     db.query(
-      "INSERT INTO nodes (namespace, id, state, reason, last_state_write) VALUES (?, ?, ?, ?, datetime('now'))"
-    ).run(namespace, nodeId, state, reason);
+      "INSERT INTO nodes (namespace, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))"
+    ).run(namespace, nodeId, state, reason, solution);
+
 
     // Check event limit
     const eventCount = db
@@ -63,15 +65,15 @@ export async function handlePutState(
       );
     }
 
-    dispatchNotifications(db, namespace, nodeId, null, state, null, reason);
+    dispatchNotifications(db, namespace, nodeId, null, state, null, reason, solution);
     return new Response(null, { status: 204 });
   }
 
-  // Same state — still update last_state_write (resets TTL clock) and reason
+  // Same state — still update last_state_write (resets TTL clock), reason, and solution
   if (existing.state === state) {
     db.query(
-      "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason) WHERE namespace = ? AND id = ?"
-    ).run(reason, namespace, nodeId);
+      "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE namespace = ? AND id = ?"
+    ).run(reason, solution, namespace, nodeId);
     return new Response(null, { status: 204 });
   }
 
@@ -99,9 +101,9 @@ export async function handlePutState(
   const prevEffective = computeEffectiveState(db, namespace, nodeId);
 
   db.query(
-    `UPDATE nodes SET state = ?, reason = ?, state_changed_at = datetime('now'), updated_at = datetime('now'), last_state_write = datetime('now')
+    `UPDATE nodes SET state = ?, reason = ?, solution = ?, state_changed_at = datetime('now'), updated_at = datetime('now'), last_state_write = datetime('now')
      WHERE namespace = ? AND id = ?`
-  ).run(state, reason, namespace, nodeId);
+  ).run(state, reason, solution, namespace, nodeId);
 
   dispatchNotifications(
     db,
@@ -110,7 +112,8 @@ export async function handlePutState(
     prevState,
     state,
     prevEffective,
-    reason
+    reason,
+    solution
   );
 
   return new Response(null, { status: 204 });

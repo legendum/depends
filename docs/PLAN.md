@@ -55,8 +55,8 @@
 - [ ] `depends_what_is_blocked` — list nodes with effective state != green
 
 ### Cross-namespace bridging
-- [ ] **Webhook headers** — optional `headers` field on notification rules, so you can pass `Authorization: Bearer <token>` to the target. This lets a webhook in namespace A call `PUT /state` on namespace B directly, no intermediary needed
-- [ ] **Webhook → PUT /state** — Optional `url` template so a webhook can set state in another namespace. Combined with headers for auth, a notification rule becomes a full bridge:
+- [ ] **Webhook headers** — optional `headers` field on notification rules (a map: header name → value). You can pass multiple headers, e.g. `Authorization: Bearer <token>` and any custom headers, so the webhook request to the target includes them. This lets a webhook in namespace A call `PUT /state` on namespace B directly, no intermediary needed.
+- [ ] **Webhook → PUT /state** — Optional `url` template so a webhook can set state in another namespace. Combined with `headers` for auth, a notification rule becomes a full bridge:
   ```yaml
   # In "fitpass" namespace — reports roll-up state to "boss" namespace
   report-to-boss:
@@ -65,6 +65,7 @@
     url: https://api.depends.cc/v1/state/boss/fitpass/{{effective_state}}
     headers:
       Authorization: "Bearer dps_boss_token_here"
+      X-Custom-Header: "optional"
   ```
   The `{{effective_state}}` template variable is resolved at fire time. This makes depends.cc its own webhook target — no glue code, no intermediary.
 

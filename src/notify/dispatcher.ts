@@ -38,14 +38,15 @@ export function dispatchNotifications(
   previousState: string | null,
   newState: string,
   previousEffectiveState: string | null,
-  reason?: string | null
+  reason?: string | null,
+  solution?: string | null
 ): void {
   const newEffectiveState = computeEffectiveState(db, namespace, nodeId);
 
   // Record event for the changed node
   db.query(
-    `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason, solution)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     namespace,
     nodeId,
@@ -53,7 +54,8 @@ export function dispatchNotifications(
     newState,
     previousEffectiveState,
     newEffectiveState,
-    reason ?? null
+    reason ?? null,
+    solution ?? null
   );
 
   // Collect all nodes whose effective state may have changed
@@ -102,8 +104,8 @@ export function dispatchNotifications(
         .get(namespace, downId) as { state: string };
 
       db.query(
-        `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO events (namespace, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason, solution)
+         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)`
       ).run(namespace, downId, downNode.state, downNode.state, prevEff, newEff);
 
       affectedNodes.push({
@@ -132,10 +134,10 @@ export function dispatchNotifications(
         continue;
       }
 
-      // Get the node's current reason
+      // Get the node's current reason and solution
       const nodeData = db
-        .query("SELECT reason FROM nodes WHERE namespace = ? AND id = ?")
-        .get(namespace, affected.id) as { reason: string | null } | null;
+        .query("SELECT reason, solution FROM nodes WHERE namespace = ? AND id = ?")
+        .get(namespace, affected.id) as { reason: string | null; solution: string | null } | null;
 
       const payload: WebhookPayload = {
         event: "effective_state_changed",
@@ -145,6 +147,7 @@ export function dispatchNotifications(
         effective_state: affected.newEffective,
         previous_effective_state: affected.prevEffective ?? "unknown",
         reason: nodeData?.reason ?? null,
+        solution: nodeData?.solution ?? null,
         triggered_rule: rule.id,
         timestamp: new Date().toISOString(),
       };

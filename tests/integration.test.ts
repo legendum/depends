@@ -300,11 +300,38 @@ describe("reason", () => {
     const node = await (await api(`/nodes/${NS}/database`)).json();
     expect(node.reason).toBe("maintenance window");
   });
+
+  test("PUT /state with X-Depends-Solution header", async () => {
+    await api(`/state/${NS}/database/red`, {
+      method: "PUT",
+      headers: {
+        "X-Depends-Reason": "disk full",
+        "X-Depends-Solution": "Run df -h and clear logs",
+      },
+    });
+
+    const node = await (await api(`/nodes/${NS}/database`)).json();
+    expect(node.reason).toBe("disk full");
+    expect(node.solution).toBe("Run df -h and clear logs");
+  });
+
+  test("solution appears in events and graph", async () => {
+    const eventsRes = await api(`/events/${NS}/database`);
+    const eventsData = await eventsRes.json();
+    const last = eventsData.events[eventsData.events.length - 1];
+    expect(last.solution).toBe("Run df -h and clear logs");
+
+    const graphRes = await api(`/graph/${NS}?state=red`);
+    const graphData = await graphRes.json();
+    const dbNode = graphData.nodes.find((n: { id: string }) => n.id === "database");
+    expect(dbNode?.solution).toBe("Run df -h and clear logs");
+  });
 });
 
 describe("events", () => {
   test("state change creates an event", async () => {
-    // Change database from green to yellow
+    // Set to green then yellow so we have a known transition
+    await api(`/state/${NS}/database/green`, { method: "PUT" });
     await api(`/state/${NS}/database/yellow`, { method: "PUT" });
 
     const res = await api(`/events/${NS}/database`);
@@ -328,6 +355,15 @@ describe("events", () => {
     const data = await res.json();
     expect(data.events.length).toBe(0);
   });
+
+  test("events endpoint supports order=desc (newest first)", async () => {
+    const res = await api(`/events/${NS}?limit=2&order=desc`);
+    const data = await res.json();
+    expect(data.events.length).toBeLessThanOrEqual(2);
+    if (data.events.length >= 2) {
+      expect(data.events[0].id).toBeGreaterThan(data.events[1].id);
+    }
+  });
 });
 
 describe("graph", () => {
@@ -350,6 +386,8 @@ describe("graph", () => {
     const data = await res.json();
     for (const node of data.nodes) {
       expect(node.effective_state).toBe("red");
+      expect(node).toHaveProperty("label");
+      expect(node).toHaveProperty("reason");
     }
   });
 

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,
   reason      TEXT,  -- human/AI-readable reason for current state
+  solution    TEXT,  -- optional recommended fix (e.g. from X-Depends-Solution)
   ttl         INTEGER,  -- seconds; null = no TTL
   last_state_write TEXT,  -- timestamp of last PUT /state, for TTL expiry
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -60,11 +61,15 @@ CREATE TABLE IF NOT EXISTS events (
   previous_effective_state TEXT,
   new_effective_state TEXT NOT NULL,
   reason      TEXT,
+  solution    TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_events_namespace ON events(namespace, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_node ON events(namespace, node_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(namespace, node_id, id);
+
+CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(namespace, to_node);
 `;
 
 export const PLAN_LIMITS: Record<string, { nodes: number; events: number }> = {

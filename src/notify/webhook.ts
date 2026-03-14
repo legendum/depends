@@ -6,6 +6,7 @@ export interface WebhookPayload {
   effective_state: string;
   previous_effective_state: string;
   reason: string | null;
+  solution: string | null;
   triggered_rule: string;
   timestamp: string;
 }
