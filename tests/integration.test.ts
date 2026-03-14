@@ -25,9 +25,10 @@ async function api(
     body?: unknown;
     auth?: boolean;
     contentType?: string;
+    headers?: Record<string, string>;
   } = {}
 ) {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (opts.auth !== false && token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -274,6 +275,50 @@ describe("state shorthand", () => {
     ).json();
 
     expect(afterEvents.events.length).toBe(beforeEvents.events.length);
+  });
+});
+
+describe("reason", () => {
+  test("PUT /state with X-Depends-Reason header", async () => {
+    await api(`/state/${NS}/database`, {
+      method: "PUT",
+      body: "red",
+      contentType: "text/plain",
+      headers: { "X-Depends-Reason": "disk full on /var/data" },
+    });
+
+    const node = await (await api(`/nodes/${NS}/database`)).json();
+    expect(node.state).toBe("red");
+    expect(node.reason).toBe("disk full on /var/data");
+  });
+
+  test("reason appears in events", async () => {
+    const res = await api(`/events/${NS}/database`);
+    const data = await res.json();
+    const last = data.events[data.events.length - 1];
+    expect(last.reason).toBe("disk full on /var/data");
+  });
+
+  test("reason updates on state change", async () => {
+    await api(`/state/${NS}/database`, {
+      method: "PUT",
+      body: "green",
+      contentType: "text/plain",
+      headers: { "X-Depends-Reason": "disk cleaned up" },
+    });
+
+    const node = await (await api(`/nodes/${NS}/database`)).json();
+    expect(node.reason).toBe("disk cleaned up");
+  });
+
+  test("reason via PUT /nodes", async () => {
+    await api(`/nodes/${NS}/database`, {
+      method: "PUT",
+      body: { state: "yellow", reason: "maintenance window" },
+    });
+
+    const node = await (await api(`/nodes/${NS}/database`)).json();
+    expect(node.reason).toBe("maintenance window");
   });
 });
 
