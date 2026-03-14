@@ -7,6 +7,14 @@
 node_modules/
 dist/
 
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Bun
+bun.lock
+
 # Compiled Java class files
 *.class
 
