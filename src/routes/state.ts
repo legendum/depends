@@ -42,7 +42,7 @@ export async function handlePutState(
     }
 
     db.query(
-      "INSERT INTO nodes (namespace, id, state) VALUES (?, ?, ?)"
+      "INSERT INTO nodes (namespace, id, state, last_state_write) VALUES (?, ?, ?, datetime('now'))"
     ).run(namespace, nodeId, state);
 
     // Check event limit
@@ -65,8 +65,11 @@ export async function handlePutState(
     return new Response(null, { status: 204 });
   }
 
-  // Same state — no-op
+  // Same state — still update last_state_write (resets TTL clock)
   if (existing.state === state) {
+    db.query(
+      "UPDATE nodes SET last_state_write = datetime('now') WHERE namespace = ? AND id = ?"
+    ).run(namespace, nodeId);
     return new Response(null, { status: 204 });
   }
 
@@ -94,7 +97,7 @@ export async function handlePutState(
   const prevEffective = computeEffectiveState(db, namespace, nodeId);
 
   db.query(
-    `UPDATE nodes SET state = ?, state_changed_at = datetime('now'), updated_at = datetime('now')
+    `UPDATE nodes SET state = ?, state_changed_at = datetime('now'), updated_at = datetime('now'), last_state_write = datetime('now')
      WHERE namespace = ? AND id = ?`
   ).run(state, namespace, nodeId);
 

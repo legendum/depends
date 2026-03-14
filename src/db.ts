@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,
+  ttl         INTEGER,  -- seconds; null = no TTL
+  last_state_write TEXT,  -- timestamp of last PUT /state, for TTL expiry
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (namespace, id)
@@ -69,6 +71,23 @@ export const PLAN_LIMITS: Record<string, { nodes: number; events: number }> = {
   team: { nodes: 5_000, events: 500_000 },
   enterprise: { nodes: Infinity, events: Infinity },
 };
+
+/**
+ * Parse a TTL duration string like "10m", "1h", "30s" into seconds.
+ */
+export function parseTtl(ttl: string): number {
+  const match = ttl.match(/^(\d+)(s|m|h|d)$/);
+  if (!match) throw new Error(`Invalid TTL format: ${ttl}. Use e.g. "30s", "10m", "1h", "7d".`);
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  switch (unit) {
+    case "s": return value;
+    case "m": return value * 60;
+    case "h": return value * 3600;
+    case "d": return value * 86400;
+    default: return value;
+  }
+}
 
 export function createDb(path: string = "depends.db"): Database {
   const db = new Database(path);

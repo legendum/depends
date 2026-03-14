@@ -72,6 +72,7 @@ GET    /nodes/{namespace}                    — List all nodes in a namespace
   "state": "green",
   "label": "Payment Service",
   "depends_on": ["database", "auth-service"],
+  "ttl": "10m",
   "meta": {
     "url": "https://pay.example.com",
     "owner": "backend-team"
@@ -80,6 +81,8 @@ GET    /nodes/{namespace}                    — List all nodes in a namespace
 ```
 
 All fields optional on update (patch semantics). `depends_on` references other node IDs within the same namespace.
+
+- `ttl`: Optional. If set, the node automatically transitions to `yellow` if no state write is received within this duration (e.g., `"5m"`, `"1h"`, `"30s"`). TTL expiry never sets a node to red — yellow means "we haven't heard from it", red means "it told us something is wrong". Each state write resets the TTL clock.
 
 #### GET /nodes/{namespace}/{node-id}
 
@@ -275,6 +278,7 @@ nodes:
     depends_on:
       - database
       - auth-service
+    ttl: 10m
     meta:
       url: https://api.example.com
 
@@ -478,6 +482,7 @@ CREATE TABLE nodes (
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,  -- JSON
+  ttl         INTEGER,  -- seconds; null = no TTL
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (namespace, id)

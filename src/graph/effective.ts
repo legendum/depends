@@ -11,6 +11,28 @@ function worstState(a: string, b: string): string {
 }
 
 /**
+ * Resolve a node's own state, accounting for TTL expiry.
+ * If the node has a TTL and the last state write is older than TTL,
+ * the state is degraded to yellow (but never to red — TTL expiry means
+ * "we haven't heard from it", not "it told us it's broken").
+ */
+function resolveNodeState(node: {
+  state: string;
+  ttl: number | null;
+  last_state_write: string | null;
+}): string {
+  if (!node.ttl || !node.last_state_write) return node.state;
+  if (node.state !== "green") return node.state; // only degrade green -> yellow
+
+  const lastWrite = new Date(node.last_state_write + "Z").getTime();
+  const now = Date.now();
+  const elapsed = (now - lastWrite) / 1000;
+
+  if (elapsed > node.ttl) return "yellow";
+  return node.state;
+}
+
+/**
  * Compute the effective state of a node by traversing all transitive dependencies.
  * Effective state = worst of (own state, all dependency states).
  */
@@ -20,12 +42,12 @@ export function computeEffectiveState(
   nodeId: string
 ): string {
   const node = db
-    .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")
-    .get(namespace, nodeId) as { state: string } | null;
+    .query("SELECT state, ttl, last_state_write FROM nodes WHERE namespace = ? AND id = ?")
+    .get(namespace, nodeId) as { state: string; ttl: number | null; last_state_write: string | null } | null;
 
   if (!node) throw new Error(`Node not found: ${namespace}/${nodeId}`);
 
-  let worst = node.state;
+  let worst = resolveNodeState(node);
   const visited = new Set<string>();
   const queue = [nodeId];
 
@@ -41,11 +63,11 @@ export function computeEffectiveState(
 
     for (const dep of deps) {
       const depNode = db
-        .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")
-        .get(namespace, dep.to_node) as { state: string } | null;
+        .query("SELECT state, ttl, last_state_write FROM nodes WHERE namespace = ? AND id = ?")
+        .get(namespace, dep.to_node) as { state: string; ttl: number | null; last_state_write: string | null } | null;
 
       if (depNode) {
-        worst = worstState(worst, depNode.state);
+        worst = worstState(worst, resolveNodeState(depNode));
         if (!visited.has(dep.to_node)) {
           queue.push(dep.to_node);
         }

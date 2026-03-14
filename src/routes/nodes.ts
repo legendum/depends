@@ -1,13 +1,14 @@
 import { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
 import { wouldCreateCycle } from "../graph/cycle";
-import { PLAN_LIMITS } from "../db";
+import { PLAN_LIMITS, parseTtl } from "../db";
 import { dispatchNotifications } from "../notify/dispatcher";
 
 interface NodeBody {
   state?: string;
   label?: string;
   depends_on?: string[];
+  ttl?: string | null;
   meta?: Record<string, unknown>;
 }
 
@@ -74,6 +75,19 @@ export async function handlePutNode(
     return Response.json({ error: "Invalid state. Use green, yellow, or red." }, { status: 400 });
   }
 
+  let ttlSeconds: number | null | undefined;
+  if (body.ttl !== undefined) {
+    if (body.ttl === null) {
+      ttlSeconds = null; // clear TTL
+    } else {
+      try {
+        ttlSeconds = parseTtl(body.ttl);
+      } catch {
+        return Response.json({ error: 'Invalid TTL format. Use e.g. "30s", "10m", "1h", "7d".' }, { status: 400 });
+      }
+    }
+  }
+
   const prevState = existing?.state ?? null;
   const state = body.state ?? existing?.state ?? "yellow";
   const stateChanged = prevState !== null && state !== prevState;
@@ -97,6 +111,10 @@ export async function handlePutNode(
       setParts.push("meta = ?");
       params.push(JSON.stringify(body.meta));
     }
+    if (ttlSeconds !== undefined) {
+      setParts.push("ttl = ?");
+      params.push(ttlSeconds);
+    }
     setParts.push("updated_at = datetime('now')");
 
     if (setParts.length > 0) {
@@ -107,14 +125,15 @@ export async function handlePutNode(
     }
   } else {
     db.query(
-      `INSERT INTO nodes (namespace, id, label, state, meta)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO nodes (namespace, id, label, state, meta, ttl)
+       VALUES (?, ?, ?, ?, ?, ?)`
     ).run(
       namespace,
       nodeId,
       body.label ?? null,
       state,
-      body.meta ? JSON.stringify(body.meta) : null
+      body.meta ? JSON.stringify(body.meta) : null,
+      ttlSeconds ?? null
     );
   }
 
@@ -230,6 +249,13 @@ export function handleListNodes(
   );
 }
 
+function formatTtl(seconds: number): string {
+  if (seconds % 86400 === 0) return `${seconds / 86400}d`;
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
 function formatNode(
   db: Database,
   namespace: string,
@@ -245,6 +271,7 @@ function formatNode(
     .query("SELECT from_node FROM edges WHERE namespace = ? AND to_node = ?")
     .all(namespace, nodeId) as { from_node: string }[];
 
+  const ttl = node.ttl as number | null;
   return {
     id: nodeId,
     namespace,
@@ -253,6 +280,7 @@ function formatNode(
     label: node.label ?? null,
     depends_on: dependsOn.map((e) => e.to_node),
     depended_on_by: dependedOnBy.map((e) => e.from_node),
+    ttl: ttl ? formatTtl(ttl) : null,
     meta: node.meta ? JSON.parse(node.meta as string) : null,
     state_changed_at: node.state_changed_at,
     updated_at: node.updated_at,
