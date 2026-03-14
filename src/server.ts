@@ -66,7 +66,8 @@ export function createServer(db: Database, port: number = PORT) {
 
         case "state": {
           const nodeId = segments[3];
-          if (method === "PUT" && nodeId) return handlePutState(db, namespace, nodeId, req);
+          const stateSegment = segments[4];
+          if (method === "PUT" && nodeId && stateSegment) return handlePutState(db, namespace, nodeId, stateSegment, req);
           break;
         }
 

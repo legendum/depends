@@ -3,24 +3,23 @@ import { PLAN_LIMITS } from "../db";
 import { computeEffectiveState } from "../graph/effective";
 import { dispatchNotifications } from "../notify/dispatcher";
 
+const VALID_STATES = ["green", "yellow", "red"] as const;
+
 export async function handlePutState(
   db: Database,
   namespace: string,
   nodeId: string,
+  state: string,
   req: Request
 ): Promise<Response> {
-  const body = (await req.text()).trim();
   const reason = req.headers.get("X-Depends-Reason");
-  const validStates = ["green", "yellow", "red"];
 
-  if (!validStates.includes(body)) {
+  if (!VALID_STATES.includes(state as (typeof VALID_STATES)[number])) {
     return Response.json(
       { error: "Invalid state. Use green, yellow, or red." },
       { status: 400 }
     );
   }
-
-  const state = body;
 
   const existing = db
     .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")

@@ -12,7 +12,7 @@
 - [x] Auth — token generation, hashing, verification
 - [x] Namespace CRUD — create (returns one-time token), delete (cascades)
 - [x] Node CRUD — create/update (patch semantics), get (with effective state), delete, list
-- [x] State shorthand — `PUT /state/{ns}/{id}` with plain text body, auto-creates nodes
+- [x] State shorthand — `PUT /state/{ns}/{id}/{state}` (state in path, no body), auto-creates nodes
 - [x] Dependency edges — `depends_on` on nodes, auto-creates referenced nodes
 - [x] Cycle detection — rejects edges that would create cycles in the DAG
 - [x] Effective state — computed on read via BFS, worst-of-tree propagation
@@ -56,13 +56,13 @@
 
 ### Cross-namespace bridging
 - [ ] **Webhook headers** — optional `headers` field on notification rules, so you can pass `Authorization: Bearer <token>` to the target. This lets a webhook in namespace A call `PUT /state` on namespace B directly, no intermediary needed
-- [ ] **`PUT /state` accepts query string state** — e.g. `PUT /state/boss/fitpass?state=red` so a webhook URL alone (no body parsing) can set state cross-namespace. Combined with headers for auth, a notification rule becomes a full bridge:
+- [ ] **Webhook → PUT /state** — Optional `url` template so a webhook can set state in another namespace. Combined with headers for auth, a notification rule becomes a full bridge:
   ```yaml
   # In "fitpass" namespace — reports roll-up state to "boss" namespace
   report-to-boss:
     watch: "*"
     on: [red, green]
-    url: https://api.depends.cc/v1/state/boss/fitpass?state={{effective_state}}
+    url: https://api.depends.cc/v1/state/boss/fitpass/{{effective_state}}
     headers:
       Authorization: "Bearer dps_boss_token_here"
   ```

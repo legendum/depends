@@ -108,29 +108,25 @@ Note: `effective_state` is `red` here because a dependency (e.g., `database`) is
 
 ### State (shorthand)
 
-For quick fire-and-forget state updates:
+For quick fire-and-forget state updates, put the state in the path — no body:
 
 ```
-PUT /state/{namespace}/{node-id}
-
-Body: "green"         (plain text, just the state value)
+PUT /state/{namespace}/{node-id}/{state}
 ```
 
-Returns `204 No Content`. Auto-creates the node if it doesn't exist (with no dependencies). One curl call:
+`{state}` is one of `green`, `yellow`, or `red`. Returns `204 No Content`. Auto-creates the node if it doesn't exist (with no dependencies). One curl call:
 
 ```bash
-curl -X PUT https://api.depends.cc/v1/state/acme/api-server \
-  -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -d "green"
+curl -X PUT https://api.depends.cc/v1/state/acme/api-server/green \
+  -H "Authorization: Bearer $DEPENDS_TOKEN"
 ```
 
 Optionally include a reason via the `X-Depends-Reason` header:
 
 ```bash
-curl -X PUT https://api.depends.cc/v1/state/acme/api-server \
+curl -X PUT https://api.depends.cc/v1/state/acme/api-server/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data" \
-  -d "red"
+  -H "X-Depends-Reason: disk full on /var/data"
 ```
 
 The reason is stored on the node and included in webhook payloads and event history. It answers "why is this red?" without digging through logs.
@@ -425,10 +421,9 @@ Each service reports its own health to depends.cc — no external poller needed:
 const DEPENDS_TOKEN = process.env.DEPENDS_TOKEN;
 
 async function reportState(state: "green" | "yellow" | "red") {
-  await fetch("https://api.depends.cc/v1/state/myproject/api-server", {
+  await fetch(`https://api.depends.cc/v1/state/myproject/api-server/${state}`, {
     method: "PUT",
     headers: { "Authorization": `Bearer ${DEPENDS_TOKEN}` },
-    body: state,
   });
 }
 
@@ -582,7 +577,7 @@ depends/
 
 ## Design Principles
 
-1. **Dead simple** — Setting state is one PUT with a plain-text body. No SDK required.
+1. **Dead simple** — Setting state is one PUT to `/state/{ns}/{id}/{state}` with no body. No SDK required.
 2. **State propagation, not orchestration** — depends.cc tells you what's affected. It doesn't run your tasks.
 3. **AI-native** — MCP support, structured data, designed for agents to read and write.
 4. **Transparent** — The graph is always queryable. No hidden state.

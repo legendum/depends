@@ -225,11 +225,7 @@ describe("nodes", () => {
 describe("state shorthand", () => {
   test("set state on existing node", async () => {
     // Reset database to green
-    const res = await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "green",
-      contentType: "text/plain",
-    });
+    const res = await api(`/state/${NS}/database/green`, { method: "PUT" });
     expect(res.status).toBe(204);
 
     const node = await (await api(`/nodes/${NS}/database`)).json();
@@ -237,11 +233,7 @@ describe("state shorthand", () => {
   });
 
   test("auto-creates node on PUT /state", async () => {
-    const res = await api(`/state/${NS}/new-service`, {
-      method: "PUT",
-      body: "green",
-      contentType: "text/plain",
-    });
+    const res = await api(`/state/${NS}/new-service/green`, { method: "PUT" });
     expect(res.status).toBe(204);
 
     const node = await (await api(`/nodes/${NS}/new-service`)).json();
@@ -250,11 +242,7 @@ describe("state shorthand", () => {
   });
 
   test("invalid state returns 400", async () => {
-    const res = await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "purple",
-      contentType: "text/plain",
-    });
+    const res = await api(`/state/${NS}/database/purple`, { method: "PUT" });
     expect(res.status).toBe(400);
   });
 
@@ -264,11 +252,7 @@ describe("state shorthand", () => {
       await api(`/events/${NS}/database`)
     ).json();
 
-    await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "green",
-      contentType: "text/plain",
-    });
+    await api(`/state/${NS}/database/green`, { method: "PUT" });
 
     const afterEvents = await (
       await api(`/events/${NS}/database`)
@@ -280,10 +264,8 @@ describe("state shorthand", () => {
 
 describe("reason", () => {
   test("PUT /state with X-Depends-Reason header", async () => {
-    await api(`/state/${NS}/database`, {
+    await api(`/state/${NS}/database/red`, {
       method: "PUT",
-      body: "red",
-      contentType: "text/plain",
       headers: { "X-Depends-Reason": "disk full on /var/data" },
     });
 
@@ -300,10 +282,8 @@ describe("reason", () => {
   });
 
   test("reason updates on state change", async () => {
-    await api(`/state/${NS}/database`, {
+    await api(`/state/${NS}/database/green`, {
       method: "PUT",
-      body: "green",
-      contentType: "text/plain",
       headers: { "X-Depends-Reason": "disk cleaned up" },
     });
 
@@ -325,11 +305,7 @@ describe("reason", () => {
 describe("events", () => {
   test("state change creates an event", async () => {
     // Change database from green to yellow
-    await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "yellow",
-      contentType: "text/plain",
-    });
+    await api(`/state/${NS}/database/yellow`, { method: "PUT" });
 
     const res = await api(`/events/${NS}/database`);
     const data = await res.json();
@@ -357,11 +333,7 @@ describe("events", () => {
 describe("graph", () => {
   test("full graph returns nodes and edges", async () => {
     // Reset database to green for cleaner test
-    await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "green",
-      contentType: "text/plain",
-    });
+    await api(`/state/${NS}/database/green`, { method: "PUT" });
 
     const res = await api(`/graph/${NS}`);
     const data = await res.json();
@@ -372,11 +344,7 @@ describe("graph", () => {
 
   test("filter by effective state", async () => {
     // Set database to red so api-server is effectively red
-    await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "red",
-      contentType: "text/plain",
-    });
+    await api(`/state/${NS}/database/red`, { method: "PUT" });
 
     const res = await api(`/graph/${NS}?state=red`);
     const data = await res.json();
@@ -411,11 +379,7 @@ describe("graph", () => {
 
   test("YAML import preserves state", async () => {
     // Set database to red
-    await api(`/state/${NS}/database`, {
-      method: "PUT",
-      body: "red",
-      contentType: "text/plain",
-    });
+    await api(`/state/${NS}/database/red`, { method: "PUT" });
 
     // Import YAML that mentions database
     const yaml = `
@@ -599,10 +563,9 @@ describe("plan limits", () => {
   });
 
   test("node limit enforced on PUT /state auto-create", async () => {
-    const res = await fetch(`${baseUrl}/state/${limitNs}/auto-overflow`, {
+    const res = await fetch(`${baseUrl}/state/${limitNs}/auto-overflow/green`, {
       method: "PUT",
       headers: { Authorization: `Bearer ${limitToken}` },
-      body: "green",
     });
     expect(res.status).toBe(402);
   });
