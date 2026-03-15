@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS notification_rules (
   email       TEXT,
   secret      TEXT,
   ack         INTEGER NOT NULL DEFAULT 0,
+  ack_token   TEXT,
   suppressed  INTEGER NOT NULL DEFAULT 0,
   last_fired_at TEXT,
   CHECK (url IS NOT NULL OR email IS NOT NULL),

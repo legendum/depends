@@ -15,6 +15,7 @@ interface NotificationRule {
   email: string | null;
   secret: string | null;
   ack: number;
+  ack_token: string | null;
   suppressed: number;
 }
 
@@ -140,6 +141,7 @@ export function dispatchNotifications(
         .query("SELECT reason, solution FROM nodes WHERE namespace = ? AND id = ?")
         .get(namespace, affected.id) as { reason: string | null; solution: string | null } | null;
 
+      const baseUrl = process.env.BASE_URL ?? "https://depends.cc";
       const payload: WebhookPayload = {
         event: "effective_state_changed",
         namespace,
@@ -151,6 +153,7 @@ export function dispatchNotifications(
         solution: nodeData?.solution ?? null,
         triggered_rule: rule.id,
         timestamp: new Date().toISOString(),
+        ...(rule.ack_token ? { ack_url: `${baseUrl}/v1/ack/${rule.ack_token}` } : {}),
       };
 
       if (rule.url) {

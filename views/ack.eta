@@ -1,0 +1,10 @@
+<div style="max-width: 520px; margin: 2rem auto; text-align: center;">
+<% if (it.success) { %>
+  <h2>Acknowledged</h2>
+  <p>Rule <code><%= it.rule_id %></code> in <code><%= it.namespace %></code> has been re-enabled and will fire again on the next state change.</p>
+<% } else { %>
+  <h2>Invalid link</h2>
+  <p>This acknowledge link is not valid or has already been used.</p>
+<% } %>
+  <p style="margin-top: 2rem;"><a href="/">← depends.cc</a></p>
+</div>

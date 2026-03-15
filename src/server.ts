@@ -11,6 +11,7 @@ import { handleGetEvents } from "./routes/events";
 import { handleGetGraph, handleGetSubgraph, handleGetUpstream, handleGetDownstream, handlePutGraph } from "./routes/graph";
 import { handlePutNotification, handleListNotifications, handleDeleteNotification, handleAckNotification } from "./routes/notifications";
 import { handleGetUsage } from "./routes/usage";
+import { rateLimit } from "./ratelimit";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
@@ -52,6 +53,16 @@ export function createApp(db: Database) {
   ensureLocalToken(db);
 
   const app = new Elysia()
+    // Rate limiting (skip for local requests)
+    .onBeforeHandle(({ request, server }) => {
+      if (isLocalRequest(request, server)) return;
+      const forwarded = request.headers.get("X-Forwarded-For");
+      const ip = forwarded
+        ? forwarded.split(",")[0].trim()
+        : ((server as { requestIP?(req: Request): { address: string } | null })?.requestIP?.(request)?.address ?? "unknown");
+      return rateLimit(ip) ?? undefined;
+    })
+
     // Static files
     .get("/favicon.png", () => Bun.file(join(PUBLIC_DIR, "favicon.png")))
     .get("/logo.png", () => Bun.file(join(PUBLIC_DIR, "logo.png")))
@@ -137,6 +148,20 @@ export function createApp(db: Database) {
 
     // Unauthenticated: signup (creates a token)
     .post("/v1/signup", ({ request }) => handleSignup(db, request))
+
+    // Unauthenticated: ack via token link (from email)
+    .get("/v1/ack/:token", ({ params }) => {
+      const rule = db.query(
+        "SELECT namespace, id FROM notification_rules WHERE ack_token = ?"
+      ).get(params.token) as { namespace: string; id: string } | null;
+      if (!rule) {
+        return render("ack", { title: "Acknowledge — depends.cc", success: false });
+      }
+      db.query(
+        "UPDATE notification_rules SET suppressed = 0 WHERE namespace = ? AND id = ?"
+      ).run(rule.namespace, rule.id);
+      return render("ack", { title: "Acknowledge — depends.cc", success: true, rule_id: rule.id, namespace: rule.namespace });
+    })
 
     // Token-only auth: create namespace (namespace doesn't exist yet)
     .post("/v1/namespaces", async ({ request, server }) => {

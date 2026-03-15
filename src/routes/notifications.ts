@@ -46,10 +46,15 @@ export async function handlePutNotification(
     ? body.on.join(",")
     : body.on ?? "red";
 
+  // Generate a unique ack token for ack-enabled rules
+  const ackToken = body.ack
+    ? Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url")
+    : null;
+
   db.query(
     `INSERT OR REPLACE INTO notification_rules
-     (namespace, id, watch, on_state, url, email, secret, ack, suppressed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`
+     (namespace, id, watch, on_state, url, email, secret, ack, ack_token, suppressed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
   ).run(
     namespace,
     body.id,
@@ -58,7 +63,8 @@ export async function handlePutNotification(
     body.url ?? null,
     emailAddr,
     body.secret ?? null,
-    body.ack ? 1 : 0
+    body.ack ? 1 : 0,
+    ackToken
   );
 
   return Response.json({ ok: true }, { status: 200 });
