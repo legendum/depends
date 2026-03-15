@@ -55,7 +55,8 @@
 <h2>What is it?</h2>
 
 <div class="config-block">
-  <p>depends.cc tracks the state of things and what they depend on. Each node is a traffic light:</p>
+  <p>depends.cc tracks the state of things (nodes) and what they depend on.</p>
+  <p>Each node is a traffic light:</p>
 
   <div class="lights" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-left: 1rem;">
     <span class="light"><span class="dot red"></span> <strong>Red</strong> &mdash; errored, blocked, or unreachable</span>
@@ -112,6 +113,11 @@ nodes:
 <div class="config-block">
   <h3>Reason &amp; solution</h3>
   <p>Attach context: <em>why</em> is this red, and <em>what should I do?</em></p>
+</div>
+
+<div class="config-block">
+  <h3>AI friendly by design</h3>
+  <p>depends.cc is built for humans and AI agents alike. The simple REST API, plain-text reasons and solutions, and structured YAML format make it easy for AI to read system state, diagnose issues, and act on them. An AI agent can query the graph, see exactly what's red and why, read the suggested solution, and take action &mdash; no dashboards or screenshots required.</p>
 </div>
 
 <h2>Get started</h2>

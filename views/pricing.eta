@@ -126,8 +126,8 @@
 <pre><code>git clone https://github.com/legendum/depends.git
 cd depends
 bun install
-bun link            # makes "depends" available globally
-depends serve</code></pre>
+bun link         # makes "depends" available globally
+depends serve &amp;  # run in the background</code></pre>
   <p style="color: var(--muted); font-size: 0.85rem; margin-top: 0.75rem;">No signup needed &mdash; uses the <code>dep_local</code> token automatically.</p>
 </div>
 

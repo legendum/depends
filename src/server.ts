@@ -71,8 +71,10 @@ export function createApp(db: Database) {
     // Signup
     .get("/signup", () => render("signup", { title: "Sign up — depends.cc" }))
 
-    // License
+    // License & Privacy
     .get("/license", () => render("license", { title: "License — depends.cc" }))
+    .get("/privacy", () => render("privacy", { title: "Privacy — depends.cc" }))
+    .get("/terms", () => render("terms", { title: "Terms — depends.cc" }))
 
     // MCP
     .get("/mcp", () => render("mcp", { title: "MCP Server — depends.cc" }))

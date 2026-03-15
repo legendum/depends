@@ -1,0 +1,36 @@
+<h2>Privacy Policy</h2>
+
+<div class="config-block">
+<p>Last updated: March 2026</p>
+
+<br>
+<h3>What we store</h3>
+<ul>
+  <li><strong>Email address</strong> &mdash; provided at signup, used to send your API token and notify you about usage limits or service issues.</li>
+  <li><strong>API token hash</strong> &mdash; a SHA-256 hash of your token. We never store your plain-text token.</li>
+  <li><strong>Namespace and node data</strong> &mdash; the dependency graph you push, including node IDs, states, reasons, and solutions. Reasons and solutions are stored in plaintext.</li>
+  <li><strong>Event history</strong> &mdash; a log of state changes for your nodes, retained according to your plan.</li>
+  <li><strong>Notification rules</strong> &mdash; webhook URLs and email preferences you configure.</li>
+</ul>
+
+<br>
+<h3>What we do not store</h3>
+<ul>
+  <li>Billing information &mdash; payments are handled entirely by PayPal.</li>
+  <li>IP addresses or access logs.</li>
+  <li>Any other personally identifiable information beyond your email address.</li>
+</ul>
+
+<br>
+<h3>How we use your data</h3>
+<p>Your email is used solely to deliver your API token at signup and to send notifications you have configured. We do not share, sell, or distribute your email or any other data to third parties.</p>
+
+<br>
+<h3>Data breach notification</h3>
+<p>In the event of a security breach, all affected customers will be notified within two weeks of detection.</p>
+
+<br>
+<h3>Data Protection Officer</h3>
+<p>Kevin Hutchinson<br>
+<a href="mailto:dpo@legendum.co.uk">dpo@legendum.co.uk</a></p>
+</div>
