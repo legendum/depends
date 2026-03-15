@@ -8,7 +8,9 @@ PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS tokens (
   id          TEXT PRIMARY KEY,
   token_hash  TEXT NOT NULL UNIQUE,
+  email       TEXT,
   plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
+  meta        TEXT DEFAULT '{}',
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -54,7 +56,6 @@ CREATE TABLE IF NOT EXISTS notification_rules (
   suppressed  INTEGER NOT NULL DEFAULT 0,
   last_fired_at TEXT,
   CHECK (url IS NOT NULL OR email IS NOT NULL),
-  CHECK (url IS NULL OR email IS NULL),
   PRIMARY KEY (namespace, id)
 );
 
@@ -81,7 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(namespace, to_node);
 export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number; eventRetentionDays: number }> = {
   free: { nodes: 10, events: 100, namespaces: 1, eventRetentionDays: 7 },
   pro: { nodes: 500, events: 5_000, namespaces: 5, eventRetentionDays: 30 },
-  team: { nodes: 5_000, events: 50_000, namespaces: 50, eventRetentionDays: 30 },
+  team: { nodes: 2_000, events: 20_000, namespaces: 20, eventRetentionDays: 30 },
   enterprise: { nodes: 100_000, events: 1_000_000, namespaces: 500, eventRetentionDays: 30 },
 };
 

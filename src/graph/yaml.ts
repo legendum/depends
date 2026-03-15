@@ -12,7 +12,7 @@ interface YamlNotification {
   watch?: string;
   on?: string | string[];
   url?: string;
-  email?: string;
+  email?: boolean;
   secret?: string;
   ack?: boolean;
 }
@@ -34,7 +34,8 @@ export function parseYaml(content: string): YamlSpec {
 export function importYaml(
   db: Database,
   spec: YamlSpec,
-  prune: boolean = false
+  prune: boolean = false,
+  tokenId?: string
 ): void {
   const ns = spec.namespace;
 
@@ -120,7 +121,19 @@ export function importYaml(
 
     // Handle notifications
     if (spec.notifications) {
+      // Resolve email: true to token owner's email
+      let ownerEmail: string | null = null;
+      const hasEmailRule = Object.values(spec.notifications).some((r) => r.email);
+      if (hasEmailRule && tokenId) {
+        const owner = db.query("SELECT email FROM tokens WHERE id = ?").get(tokenId) as { email: string | null } | null;
+        ownerEmail = owner?.email ?? null;
+      }
+
       for (const [id, rule] of Object.entries(spec.notifications)) {
+        if (rule.email && !ownerEmail) {
+          throw new Error(`Notification "${id}" has email: true but no email address is on file for this token.`);
+        }
+
         const onState = Array.isArray(rule.on)
           ? rule.on.join(",")
           : rule.on ?? "red";
@@ -135,7 +148,7 @@ export function importYaml(
           rule.watch ?? "*",
           onState,
           rule.url ?? null,
-          rule.email ?? null,
+          rule.email ? ownerEmail : null,
           rule.secret ?? null,
           rule.ack ? 1 : 0
         );
@@ -223,7 +236,7 @@ export function exportYaml(db: Database, namespace: string): string {
     entry.on = onParts.length === 1 ? onParts[0] : onParts;
 
     if (rule.url) entry.url = rule.url;
-    if (rule.email) entry.email = rule.email;
+    if (rule.email) entry.email = true;
     if (rule.secret) entry.secret = rule.secret;
     if (rule.ack) entry.ack = true;
 

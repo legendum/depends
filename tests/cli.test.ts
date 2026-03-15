@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
+import { generateToken, generateTokenId, hashToken } from "../src/auth";
 import { existsSync, unlinkSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
@@ -17,10 +18,11 @@ beforeAll(async () => {
   server = createServer(db, 0);
   baseUrl = `http://localhost:${server.port}/v1`;
 
-  // Signup to get a token
-  const signupRes = await fetch(`${baseUrl}/signup`, { method: "POST" });
-  const signupData = await signupRes.json();
-  token = signupData.token;
+  // Seed a test token directly
+  token = generateToken();
+  const tokenId = generateTokenId();
+  const hash = await hashToken(token);
+  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(tokenId, hash, "cli-test@example.com");
 
   // Create namespace
   await fetch(`${baseUrl}/namespaces`, {
@@ -109,11 +111,10 @@ describe("depends CLI", () => {
   });
 
   describe("signup", () => {
-    test("returns a token", async () => {
-      const { stdout, exitCode } = await cli(["signup"]);
+    test("signup with email shows confirmation", async () => {
+      const { stdout, exitCode } = await cli(["signup", "newsignup@example.com"]);
       expect(exitCode).toBe(0);
-      expect(stdout).toContain("dep_");
-      expect(stdout).toContain("Token:");
+      expect(stdout).toContain("emailed");
     });
   });
 

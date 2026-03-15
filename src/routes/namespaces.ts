@@ -1,25 +1,56 @@
 import { Database } from "bun:sqlite";
 import { generateToken, generateTokenId, hashToken } from "../auth";
 import { PLAN_LIMITS } from "../db";
+import { sendSignupEmail } from "../notify/email";
 
 /**
  * POST /v1/signup — unauthenticated.
  * Creates a new token (account). Returns the token once.
+ * Body: { email: string }
  */
 export async function handleSignup(
   db: Database,
-  _req: Request
+  req: Request
 ): Promise<Response> {
+  let email: string | undefined;
+  try {
+    const body = (await req.json()) as { email?: string };
+    email = body.email?.trim().toLowerCase();
+  } catch {}
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return Response.json(
+      { error: "A valid email address is required." },
+      { status: 400 }
+    );
+  }
+
+  // Check if email is already registered
+  const existing = db.query("SELECT id FROM tokens WHERE email = ?").get(email);
+  if (existing) {
+    return Response.json(
+      { error: "An account with this email already exists." },
+      { status: 409 }
+    );
+  }
+
   const token = generateToken();
   const tokenId = generateTokenId();
   const hash = await hashToken(token);
 
-  db.query("INSERT INTO tokens (id, token_hash) VALUES (?, ?)").run(
+  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(
     tokenId,
-    hash
+    hash,
+    email
   );
 
-  return Response.json({ token }, { status: 201 });
+  // Send token to user via email (fire and forget)
+  sendSignupEmail(email, token);
+
+  return Response.json(
+    { message: "Account created. Your token will be emailed to you.", email },
+    { status: 201 }
+  );
 }
 
 /**

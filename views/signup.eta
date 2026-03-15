@@ -48,12 +48,14 @@
 
   <div class="step">
     <span class="step-num">1</span>
-    <h3>Get your token</h3>
-    <p>Use the CLI or curl:</p>
-<pre><code>depends signup</code></pre>
-    <p>Or:</p>
-<pre><code>curl -s -X POST https://depends.cc/v1/signup</code></pre>
-    <p>Save the token &mdash; it is shown only once. The CLI saves it automatically to <code>~/.depends/config.yml</code>.</p>
+    <h3>Sign up with your email</h3>
+    <p>Use the CLI:</p>
+<pre><code>depends signup you@example.com</code></pre>
+    <p>Or curl:</p>
+<pre><code>curl -s -X POST https://depends.cc/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com"}'</code></pre>
+    <p>Your token will be emailed to you. Save it to <code>~/.depends/config.yml</code> or set <code>DEPENDS_TOKEN</code>.</p>
   </div>
 
   <div class="step">

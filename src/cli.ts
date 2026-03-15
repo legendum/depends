@@ -129,34 +129,41 @@ function colorState(state: string): string {
 
 // --- Commands ---
 
-async function cmdSignup(config: Config) {
-  const res = await api(config, "/signup", { method: "POST", auth: false });
+async function cmdSignup(config: Config, args: string[]) {
+  // Get email from args or prompt
+  let email = args.find((a) => a.includes("@"));
+  if (!email) {
+    process.stdout.write("Email: ");
+    email = (await new Promise<string>((resolve) => {
+      let input = "";
+      process.stdin.setEncoding("utf-8");
+      process.stdin.on("data", (chunk) => {
+        input += chunk;
+        if (input.includes("\n")) {
+          process.stdin.pause();
+          resolve(input.trim());
+        }
+      });
+      process.stdin.resume();
+    }));
+  }
+
+  const res = await api(config, "/signup", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ email }),
+    contentType: "application/json",
+  });
   if (!res.ok) {
     const data = await res.json();
     console.error(`Error: ${data.error}`);
     process.exit(1);
   }
   const data = await res.json();
-
-  // Auto-save token to config file
-  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".depends", "config.yml");
-  const configDir = join(configPath, "..");
-
-  if (!existsSync(configDir)) {
-    mkdirSync(configDir, { recursive: true });
-  }
-
-  const savedConfig: Record<string, unknown> = {};
-  if (existsSync(configPath)) {
-    const existing = readFileSync(configPath, "utf-8");
-    Object.assign(savedConfig, (yaml.load(existing) as Record<string, unknown>) ?? {});
-  }
-  savedConfig.token = data.token;
-  savedConfig.api_url = config.api_url;
-  writeFileSync(configPath, yaml.dump(savedConfig));
-
-  console.log(`Token: ${data.token}`);
-  console.log(`Saved to ${configPath}`);
+  console.log(data.message);
+  console.log(`\nOnce you receive your token, save it:`);
+  console.log(`  export DEPENDS_TOKEN=<your-token>`);
+  console.log(`Or add it to ~/.depends/config.yml`);
 }
 
 async function cmdInit() {
@@ -653,6 +660,170 @@ async function cmdUpdate() {
   }
 }
 
+async function cmdUsage(config: Config, args: string[]) {
+  const ns = getNamespace(config, args);
+  const jsonOutput = args.includes("--json");
+
+  const res = await api(config, `/usage/${ns}`);
+  if (!res.ok) {
+    const data = await res.json();
+    console.error(`Error: ${data.error}`);
+    process.exit(1);
+  }
+
+  const data = await res.json();
+
+  if (jsonOutput) {
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  const limits = {
+    free: { nodes: 10, events: 100 },
+    pro: { nodes: 500, events: 5_000 },
+    team: { nodes: 2_000, events: 20_000 },
+    enterprise: { nodes: 100_000, events: 1_000_000 },
+  };
+  const planLimits = limits[data.plan as keyof typeof limits] ?? limits.free;
+
+  console.log(`${COLORS.bold}${ns}${COLORS.reset} — ${data.plan} plan — ${data.period}`);
+  console.log();
+  console.log(`  Nodes          ${data.nodes} total, ${data.active_nodes} active this month ${COLORS.dim}(limit: ${planLimits.nodes})${COLORS.reset}`);
+  console.log(`  Events         ${data.total_events} this month ${COLORS.dim}(limit: ${planLimits.events.toLocaleString()})${COLORS.reset}`);
+  if (data.webhook_deliveries > 0) console.log(`  Webhooks       ${data.webhook_deliveries} fired this month`);
+  if (data.emails_sent > 0) console.log(`  Emails         ${data.emails_sent} sent this month`);
+}
+
+interface Event {
+  node_id: string;
+  previous_state: string | null;
+  new_state: string;
+  previous_effective_state: string | null;
+  new_effective_state: string;
+  reason: string | null;
+  created_at: string;
+}
+
+async function cmdEvents(config: Config, args: string[]) {
+  const target = args.find((a) => !a.startsWith("-") && a !== "events");
+  const jsonOutput = args.includes("--json");
+  const limitIdx = args.indexOf("--limit");
+  const limit = limitIdx !== -1 && args[limitIdx + 1] ? args[limitIdx + 1] : "20";
+
+  let ns: string;
+  let nodeId: string | undefined;
+  if (target?.includes("/")) {
+    const slashIdx = target.indexOf("/");
+    ns = target.slice(0, slashIdx);
+    nodeId = target.slice(slashIdx + 1);
+  } else {
+    ns = getNamespace(config, args);
+    nodeId = target;
+  }
+
+  const path = nodeId
+    ? `/events/${ns}/${nodeId}?limit=${limit}&order=desc`
+    : `/events/${ns}?limit=${limit}&order=desc`;
+
+  const res = await api(config, path);
+  if (!res.ok) {
+    const data = await res.json();
+    console.error(`Error: ${data.error}`);
+    process.exit(1);
+  }
+
+  const events: Event[] = await res.json();
+
+  if (jsonOutput) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log("No events.");
+    return;
+  }
+
+  for (const e of events) {
+    const prev = e.previous_state ? colorState(e.previous_state) : `${COLORS.dim}(new)${COLORS.reset}`;
+    const arrow = `${COLORS.dim}→${COLORS.reset}`;
+    const reason = e.reason ? ` ${COLORS.dim}— ${e.reason}${COLORS.reset}` : "";
+    const time = `${COLORS.dim}${e.created_at}${COLORS.reset}`;
+    console.log(`  ${time}  ${e.node_id}  ${prev} ${arrow} ${colorState(e.new_state)}${reason}`);
+  }
+}
+
+async function cmdAdmin(args: string[]) {
+  const sub = args[1];
+
+  // Admin commands operate directly on the local database
+  const dbPath = join(process.cwd(), "data", "depends.db");
+  if (!existsSync(dbPath)) {
+    console.error("Error: No database found at data/depends.db. Run from the server directory.");
+    process.exit(1);
+  }
+
+  const { createDb } = await import("./db");
+  const db = createDb(dbPath);
+
+  if (sub === "tokens") {
+    const tokens = db.query("SELECT id, email, plan, created_at FROM tokens ORDER BY created_at").all() as {
+      id: string; email: string | null; plan: string; created_at: string;
+    }[];
+
+    if (tokens.length === 0) {
+      console.log("No tokens.");
+      return;
+    }
+
+    const maxEmail = Math.max(5, ...tokens.map((t) => (t.email ?? "-").length));
+    const maxPlan = Math.max(4, ...tokens.map((t) => t.plan.length));
+
+    for (const t of tokens) {
+      const email = (t.email ?? "-").padEnd(maxEmail);
+      const plan = t.plan.padEnd(maxPlan);
+      console.log(`  ${email}  ${plan}  ${COLORS.dim}${t.id}  ${t.created_at}${COLORS.reset}`);
+    }
+  } else if (sub === "plan") {
+    const emailArg = args[2];
+    const planArg = args[3];
+
+    if (!emailArg) {
+      console.error("Usage: depends admin plan <email> [<plan>]");
+      process.exit(1);
+    }
+
+    const token = db.query("SELECT id, email, plan, meta FROM tokens WHERE email = ?").get(emailArg) as {
+      id: string; email: string; plan: string; meta: string | null;
+    } | null;
+
+    if (!token) {
+      console.error(`Error: No token found for email "${emailArg}".`);
+      process.exit(1);
+    }
+
+    if (!planArg) {
+      // Show current plan
+      console.log(`${token.email} — ${token.plan} plan`);
+      return;
+    }
+
+    const validPlans = ["free", "pro", "team", "enterprise"];
+    if (!validPlans.includes(planArg)) {
+      console.error(`Error: Invalid plan "${planArg}". Must be one of: ${validPlans.join(", ")}`);
+      process.exit(1);
+    }
+
+    db.query("UPDATE tokens SET plan = ? WHERE id = ?").run(planArg, token.id);
+    console.log(`${token.email} — ${token.plan} → ${planArg}`);
+  } else {
+    console.error(`Usage:
+  depends admin tokens              List all tokens
+  depends admin plan <email> [plan]  Show or set plan for an email`);
+    process.exit(1);
+  }
+}
+
 async function cmdServe(args: string[]) {
   const portIdx = args.indexOf("-p");
   const port = portIdx !== -1 && args[portIdx + 1] ? parseInt(args[portIdx + 1], 10) : 3000;
@@ -681,22 +852,27 @@ function printUsage() {
 
 ${COLORS.bold}Usage:${COLORS.reset}
   depends serve [-p <port>]                   Run the server locally (default: 3000)
-  depends signup                              Get a token (one-time)
+  depends signup <email>                      Sign up (token emailed to you)
   depends init                                Create a depends.yml in the current directory
   depends push [--prune]                      Upload depends.yml (auto-creates namespace)
   depends pull                                Download graph as depends.yml
   depends status [<node-id>]                  Show node states (color-coded)
   depends set [<namespace>/]<node-id> <state> Set a node's state (green/yellow/red)
   depends graph                               Print dependency tree
+  depends events [<ns/node>]                   Show recent state changes
   depends validate                            Check depends.yml for errors
   depends delete                              Delete a namespace and all its data
+  depends usage                               Show usage stats for current billing period
   depends diff                                Show what would change on push
   depends update                              Update to the latest version
+  depends admin tokens                        List all tokens (server admin)
+  depends admin plan <email> [plan]            Show or set plan for an email
 
 ${COLORS.bold}Options:${COLORS.reset}
   -n, --namespace <ns>    Override namespace
   -p <port>               Port for serve (default: 3000)
-  --json                  Output as JSON (with status)
+  --json                  Output as JSON (with status, events)
+  --limit <n>             Number of events to show (default: 20)
   --reason <text>         Reason for state change (with set)
   --solution <text>       Recommended fix (with set)
 
@@ -739,7 +915,7 @@ async function main() {
       await cmdUpdate();
       break;
     case "signup":
-      await cmdSignup(config);
+      await cmdSignup(config, args);
       break;
     case "init":
       await cmdInit();
@@ -759,14 +935,23 @@ async function main() {
     case "graph":
       await cmdGraph(config, args);
       break;
+    case "events":
+      await cmdEvents(config, args);
+      break;
     case "validate":
       await cmdValidate();
       break;
     case "delete":
       await cmdDelete(config, args);
       break;
+    case "usage":
+      await cmdUsage(config, args);
+      break;
     case "diff":
       await cmdDiff(config, args);
+      break;
+    case "admin":
+      await cmdAdmin(args);
       break;
     default:
       console.error(`Unknown command: ${command}`);

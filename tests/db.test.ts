@@ -98,15 +98,16 @@ describe("database", () => {
     db.close();
   });
 
-  test("enforces notification rule cannot have both url and email", () => {
+  test("allows notification rule with both url and email", () => {
     const db = createTestDb();
     insertNs(db);
-    expect(() => {
-      db.query(
-        `INSERT INTO notification_rules (namespace, id, on_state, url, email)
-         VALUES ('test', 'r1', 'red', 'https://example.com', 'a@b.com')`
-      ).run();
-    }).toThrow();
+    db.query(
+      `INSERT INTO notification_rules (namespace, id, on_state, url, email)
+       VALUES ('test', 'r1', 'red', 'https://example.com', 'a@b.com')`
+    ).run();
+    const rule = db.query("SELECT * FROM notification_rules WHERE namespace = 'test' AND id = 'r1'").get() as Record<string, unknown>;
+    expect(rule.url).toBe("https://example.com");
+    expect(rule.email).toBe("a@b.com");
     db.close();
   });
 });

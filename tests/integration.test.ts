@@ -1,17 +1,25 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
+import { generateToken, generateTokenId, hashToken } from "../src/auth";
 import type { Server } from "bun";
 
 let server: ReturnType<typeof createServer>;
 let baseUrl: string;
 let token: string;
+let db: ReturnType<typeof createTestDb>;
 const NS = "test-ns";
 
 beforeAll(async () => {
-  const db = createTestDb();
+  db = createTestDb();
   server = createServer(db, 0);
   baseUrl = `http://localhost:${server.port}/v1`;
+
+  // Seed a test token directly
+  token = generateToken();
+  const tokenId = generateTokenId();
+  const hash = await hashToken(token);
+  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(tokenId, hash, "test@example.com");
 });
 
 afterAll(() => {
@@ -54,12 +62,22 @@ async function api(
 }
 
 describe("signup and namespaces", () => {
-  test("signup returns a token", async () => {
+  test("signup requires email", async () => {
     const res = await api("/signup", { method: "POST", auth: false });
+    expect(res.status).toBe(400);
+  });
+
+  test("signup with email succeeds", async () => {
+    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com" } });
     expect(res.status).toBe(201);
     const data = await res.json();
-    expect(data.token).toMatch(/^dep_/);
-    token = data.token;
+    expect(data.email).toBe("signup@example.com");
+    expect(data.message).toContain("emailed");
+  });
+
+  test("duplicate email rejected", async () => {
+    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com" } });
+    expect(res.status).toBe(409);
   });
 
   test("create namespace with token", async () => {
@@ -507,23 +525,23 @@ describe("notifications", () => {
         id: "test-email",
         watch: "*",
         on: "red",
-        email: "ops@example.com",
+        email: true,
         ack: true,
       },
     });
     expect(res.status).toBe(200);
   });
 
-  test("reject rule with both url and email", async () => {
+  test("allow rule with both url and email", async () => {
     const res = await api(`/notifications/${NS}`, {
       method: "PUT",
       body: {
-        id: "bad-rule",
+        id: "both-rule",
         url: "https://example.com",
-        email: "a@b.com",
+        email: true,
       },
     });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
   });
 
   test("reject rule with neither url nor email", async () => {
@@ -587,11 +605,12 @@ describe("plan limits", () => {
   let limitToken: string;
   const limitNs = "limit-test";
 
-  test("setup: signup and create namespace", async () => {
-    // Signup to get a new token
-    const signupRes = await api("/signup", { method: "POST", auth: false });
-    const signupData = await signupRes.json();
-    limitToken = signupData.token;
+  test("setup: create token and namespace", async () => {
+    // Create a token directly
+    limitToken = generateToken();
+    const limitTokenId = generateTokenId();
+    const limitHash = await hashToken(limitToken);
+    db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(limitTokenId, limitHash, "limit@example.com");
 
     // Create namespace
     const res = await fetch(`${baseUrl}/namespaces`, {
@@ -655,9 +674,11 @@ describe("plan limits", () => {
 
 describe("namespace deletion", () => {
   test("delete cascades everything", async () => {
-    // Signup and create a fresh namespace
-    const signupRes = await api("/signup", { method: "POST", auth: false });
-    const { token: delToken } = await signupRes.json();
+    // Create a token directly
+    const delToken = generateToken();
+    const delTokenId = generateTokenId();
+    const delHash = await hashToken(delToken);
+    db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(delTokenId, delHash, "delete@example.com");
 
     const createRes = await fetch(`${baseUrl}/namespaces`, {
       method: "POST",

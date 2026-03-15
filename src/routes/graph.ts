@@ -79,7 +79,8 @@ export function handleGetDownstream(
 export async function handlePutGraph(
   db: Database,
   namespace: string,
-  req: Request
+  req: Request,
+  tokenId: string
 ): Promise<Response> {
   const url = new URL(req.url);
   const prune = url.searchParams.get("prune") === "true";
@@ -96,7 +97,7 @@ export async function handlePutGraph(
       );
     }
 
-    importYaml(db, spec, prune);
+    importYaml(db, spec, prune, tokenId);
     return Response.json({ ok: true });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Invalid YAML";

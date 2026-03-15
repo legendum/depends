@@ -1,7 +1,7 @@
 <style>
   .plans {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1rem;
     margin: 1.5rem 0;
   }
@@ -12,6 +12,7 @@
     border-radius: 8px;
     padding: 1.5rem;
     text-align: center;
+    overflow: hidden;
   }
 
   .plan h3 {
@@ -67,9 +68,33 @@
 </style>
 
 <h2>Pricing</h2>
-<p>Based on monthly active nodes &mdash; a node counts if it received at least one state write that month.</p>
+<p>Based on monthly active nodes &mdash; a node counts if it received at least one update that month.</p>
 
 <div class="plans">
+  <div class="plan highlight">
+    <h3>Pro</h3>
+    <div class="price">$19 <span>/mo</span></div>
+    <ul>
+      <li>500 nodes</li>
+      <li>5 namespaces</li>
+      <li>5,000 events/mo</li>
+      <li>30-day event history</li>
+    </ul>
+    <div id="paypal-button-container-P-8G1189315S691515RNG3AJHI" style="margin-top: 1rem;"></div>
+  </div>
+
+  <div class="plan">
+    <h3>Team</h3>
+    <div class="price">$49 <span>/mo</span></div>
+    <ul>
+      <li>2,000 nodes</li>
+      <li>20 namespaces</li>
+      <li>20,000 events/mo</li>
+      <li>30-day event history</li>
+    </ul>
+    <div id="paypal-button-container-P-2WW90765JE113862TNG3ALKA" style="margin-top: 1rem;"></div>
+  </div>
+
   <div class="plan">
     <h3>Free</h3>
     <div class="price">$0</div>
@@ -82,31 +107,6 @@
     <a href="/signup" class="signup-link">Get started</a>
   </div>
 
-  <div class="plan highlight">
-    <h3>Pro</h3>
-    <div class="price">$19 <span>/mo</span></div>
-    <ul>
-      <li>500 nodes</li>
-      <li>5 namespaces</li>
-      <li>5,000 events/mo</li>
-      <li>30-day event history</li>
-    </ul>
-    <a href="/signup" class="signup-link">Get started</a>
-  </div>
-
-  <div class="plan">
-    <h3>Team</h3>
-    <div class="price">$49 <span>/mo</span></div>
-    <ul>
-      <li>5,000 nodes</li>
-      <li>50 namespaces</li>
-      <li>50,000 events/mo</li>
-      <li>30-day event history</li>
-    </ul>
-    <a href="/signup" class="signup-link">Get started</a>
-  </div>
-
-  <!--
   <div class="plan">
     <h3>Enterprise</h3>
     <div class="price">Custom</div>
@@ -114,10 +114,10 @@
       <li>100,000+ nodes</li>
       <li>500+ namespaces</li>
       <li>1,000,000+ events/mo</li>
+      <li>Unlimited event history</li>
     </ul>
-    <a href="/signup" class="signup-link">Contact us</a>
+    <a href="mailto:kevin@legendum.co.uk" class="signup-link">Contact us</a>
   </div>
-  -->
 </div>
 
 <div class="plan" style="max-width: 480px; margin: 1.5rem auto; text-align: left;">
@@ -130,3 +130,36 @@ bun link            # makes "depends" available globally
 depends serve</code></pre>
   <p style="color: var(--muted); font-size: 0.85rem; margin-top: 0.75rem;">No signup needed &mdash; uses the <code>dep_local</code> token automatically.</p>
 </div>
+
+<script src="https://www.paypal.com/sdk/js?client-id=AcC_cFst1-kKoOILQgvdhQXowzJEzzuShz-kSsSwmV3h9Wz5XZuoyE_d7mf6Ep0xruppBsgdFULDdMiV&vault=true&intent=subscription" data-sdk-integration-source="button-factory"></script>
+<script>
+  function renderPayPalButtons() {
+    var proCont = document.getElementById('paypal-button-container-P-8G1189315S691515RNG3AJHI');
+    var teamCont = document.getElementById('paypal-button-container-P-2WW90765JE113862TNG3ALKA');
+
+    if (proCont) proCont.innerHTML = '';
+    if (teamCont) teamCont.innerHTML = '';
+
+    paypal.Buttons({
+      style: { shape: 'rect', color: 'black', layout: 'horizontal', label: 'subscribe' },
+      createSubscription: function(data, actions) {
+        return actions.subscription.create({ plan_id: 'P-8G1189315S691515RNG3AJHI' });
+      },
+      onApprove: function(data) { alert(data.subscriptionID); }
+    }).render('#paypal-button-container-P-8G1189315S691515RNG3AJHI');
+
+    paypal.Buttons({
+      style: { shape: 'rect', color: 'black', layout: 'horizontal', label: 'subscribe' },
+      createSubscription: function(data, actions) {
+        return actions.subscription.create({ plan_id: 'P-2WW90765JE113862TNG3ALKA' });
+      },
+      onApprove: function(data) { alert(data.subscriptionID); }
+    }).render('#paypal-button-container-P-2WW90765JE113862TNG3ALKA');
+  }
+
+  renderPayPalButtons();
+
+  window.addEventListener('pageshow', function(event) {
+    if (event.persisted) renderPayPalButtons();
+  });
+</script>

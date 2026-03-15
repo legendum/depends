@@ -1,0 +1,10 @@
+namespace: depends
+
+nodes:
+  database:
+    label: Database
+
+  api-server:
+    label: API Server
+    depends_on:
+      - database

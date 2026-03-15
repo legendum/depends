@@ -4,6 +4,7 @@ import {
   getDownstreamNodes,
 } from "../graph/effective";
 import { sendWebhook, type WebhookPayload } from "./webhook";
+import { sendEmail } from "./email";
 
 interface NotificationRule {
   namespace: string;
@@ -156,7 +157,9 @@ export function dispatchNotifications(
         // Fire and forget — don't block the response
         sendWebhook(rule.url, payload, rule.secret);
       }
-      // Email: TODO — internal webhook to email service
+      if (rule.email) {
+        sendEmail(rule.email, payload);
+      }
 
       if (rule.ack) {
         db.query(

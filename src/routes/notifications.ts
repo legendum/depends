@@ -5,7 +5,7 @@ interface NotificationBody {
   watch?: string;
   on?: string | string[];
   url?: string;
-  email?: string;
+  email?: boolean;
   secret?: string;
   ack?: boolean;
 }
@@ -13,7 +13,8 @@ interface NotificationBody {
 export async function handlePutNotification(
   db: Database,
   namespace: string,
-  req: Request
+  req: Request,
+  tokenId: string
 ): Promise<Response> {
   const body = (await req.json()) as NotificationBody;
 
@@ -28,11 +29,17 @@ export async function handlePutNotification(
     );
   }
 
-  if (body.url && body.email) {
-    return Response.json(
-      { error: "Rule cannot have both 'url' and 'email'." },
-      { status: 400 }
-    );
+  // email: true resolves to the token owner's email
+  let emailAddr: string | null = null;
+  if (body.email) {
+    const owner = db.query("SELECT email FROM tokens WHERE id = ?").get(tokenId) as { email: string | null } | null;
+    if (!owner?.email) {
+      return Response.json(
+        { error: "No email address on file for this token." },
+        { status: 400 }
+      );
+    }
+    emailAddr = owner.email;
   }
 
   const onState = Array.isArray(body.on)
@@ -49,7 +56,7 @@ export async function handlePutNotification(
     body.watch ?? "*",
     onState,
     body.url ?? null,
-    body.email ?? null,
+    emailAddr,
     body.secret ?? null,
     body.ack ? 1 : 0
   );

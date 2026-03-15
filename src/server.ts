@@ -201,8 +201,8 @@ export function createApp(db: Database) {
           .get("/v1/graph/:namespace", ({ params, request }) =>
             handleGetGraph(db, params.namespace, new URL(request.url))
           )
-          .put("/v1/graph/:namespace", ({ params, request }) =>
-            handlePutGraph(db, params.namespace, request)
+          .put("/v1/graph/:namespace", ({ params, request, store }) =>
+            handlePutGraph(db, params.namespace, request, (store as { auth: AuthResult }).auth.tokenId)
           )
           .get("/v1/graph/:namespace/:nodeId", ({ params }) =>
             handleGetSubgraph(db, params.namespace, params.nodeId)
@@ -218,8 +218,8 @@ export function createApp(db: Database) {
           .get("/v1/notifications/:namespace", ({ params }) =>
             handleListNotifications(db, params.namespace)
           )
-          .put("/v1/notifications/:namespace", ({ params, request }) =>
-            handlePutNotification(db, params.namespace, request)
+          .put("/v1/notifications/:namespace", ({ params, request, store }) =>
+            handlePutNotification(db, params.namespace, request, (store as { auth: AuthResult }).auth.tokenId)
           )
           .delete("/v1/notifications/:namespace/:ruleId", ({ params }) =>
             handleDeleteNotification(db, params.namespace, params.ruleId)

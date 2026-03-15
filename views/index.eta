@@ -53,21 +53,24 @@
 </style>
 
 <h2>What is it?</h2>
-<p>depends.cc tracks the state of things and what they depend on. Each node is a traffic light:</p>
 
-<div class="lights">
-  <span class="light"><span class="dot green"></span> green</span>
-  <span class="light"><span class="dot yellow"></span> yellow</span>
-  <span class="light"><span class="dot red"></span> red</span>
-</div>
+<div class="config-block">
+  <p>depends.cc tracks the state of things and what they depend on. Each node is a traffic light:</p>
 
-<p>When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything downstream. If your database goes red, every service that depends on it is effectively red too &mdash; automatically, without updating each one.</p>
+  <div class="lights" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-left: 1rem;">
+    <span class="light"><span class="dot red"></span> <strong>Red</strong> &mdash; errored, blocked, or unreachable</span>
+    <span class="light"><span class="dot yellow"></span> <strong>Yellow</strong> &mdash; pending, deploying, or unknown</span>
+    <span class="light"><span class="dot green"></span> <strong>Green</strong> &mdash; healthy, operating normally</span>
+  </div>
 
-<div class="tree">
-  <span class="red">&#9679;</span> database <span class="dim">&mdash; disk full on /var/data</span><br>
-  &nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> api-server <span class="dim">(effective: red)</span><br>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> worker <span class="dim">(effective: red)</span><br>
-  <span class="green">&#9679;</span> auth-service<br>
+  <p>When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service upstream is effectively red too &mdash; automatically, without updating each one:</p>
+
+  <div class="tree" style="padding-left: 1rem;">
+    <span class="red">&#9679;</span> database <span class="dim">&mdash; disk full on /var/data</span><br>
+    &nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> api-server <span class="dim">(depends on database &rarr; effective: red)</span><br>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> worker <span class="dim">(depends on api-server &rarr; effective: red)</span><br>
+    <span class="green">&#9679;</span> auth-service<br>
+  </div>
 </div>
 
 <h2>How it works</h2>

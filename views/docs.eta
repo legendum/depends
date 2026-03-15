@@ -8,9 +8,10 @@
   table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
   th, td { text-align: left; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
   th { font-weight: 600; }
+  .config-block h3 { margin-bottom: 0.5rem; }
 </style>
 
-<h2>CLI</h2>
+<h2>Install the <code>depends</code> command</h2>
 
 <div class="config-block">
   <h3>Install</h3>
@@ -22,16 +23,19 @@
   <table>
     <tr><th>Command</th><th>Description</th></tr>
     <tr><td><code>depends serve [-p &lt;port&gt;]</code></td><td>Run the server locally (default: 3000)</td></tr>
-    <tr><td><code>depends signup</code></td><td>Create an account, get a token (auto-saved to config)</td></tr>
+    <tr><td><code>depends signup &lt;email&gt;</code></td><td>Create an account (token emailed to you)</td></tr>
     <tr><td><code>depends init</code></td><td>Scaffold a <code>depends.yml</code> in the current directory</td></tr>
     <tr><td><code>depends push [--prune]</code></td><td>Upload <code>depends.yml</code> to the server (auto-creates namespace)</td></tr>
     <tr><td><code>depends pull</code></td><td>Download the remote graph into <code>depends.yml</code></td></tr>
     <tr><td><code>depends status [&lt;ns/node&gt;]</code></td><td>Show node states (supports <code>--json</code>)</td></tr>
     <tr><td><code>depends set [&lt;ns/&gt;]&lt;node&gt; &lt;state&gt;</code></td><td>Set state to green, yellow, or red</td></tr>
     <tr><td><code>depends graph</code></td><td>Print the dependency tree</td></tr>
+    <tr><td><code>depends events [&lt;ns/node&gt;]</code></td><td>Show recent state changes (supports <code>--json</code>, <code>--limit</code>)</td></tr>
+    <tr><td><code>depends usage</code></td><td>Show usage stats for current billing period</td></tr>
     <tr><td><code>depends validate</code></td><td>Check <code>depends.yml</code> for errors and cycles</td></tr>
     <tr><td><code>depends diff</code></td><td>Show what would change on push</td></tr>
-    <tr><td><code>depends delete</code></td><td>Delete a namespace and all its data</td></tr>
+    <tr><td><code>depends delete [-n &lt;ns&gt;]</code></td><td>Delete a namespace and all its data</td></tr>
+    <tr><td><code>depends update</code></td><td>Update to the latest version</td></tr>
   </table>
 </div>
 
@@ -42,20 +46,102 @@
     <tr><td><code>-n, --namespace &lt;ns&gt;</code></td><td>Override namespace</td></tr>
     <tr><td><code>--reason &lt;text&gt;</code></td><td>Reason for state change (with <code>set</code>)</td></tr>
     <tr><td><code>--solution &lt;text&gt;</code></td><td>Recommended fix (with <code>set</code>)</td></tr>
-    <tr><td><code>--json</code></td><td>Output as JSON (with <code>status</code>)</td></tr>
+    <tr><td><code>--json</code></td><td>Output as JSON (with <code>status</code>, <code>events</code>)</td></tr>
+    <tr><td><code>--limit &lt;n&gt;</code></td><td>Number of events to show (default: 20, with <code>events</code>)</td></tr>
     <tr><td><code>--prune</code></td><td>Remove nodes not in YAML (with <code>push</code>)</td></tr>
   </table>
 </div>
 
 <div class="config-block">
   <h3>Configuration</h3>
-  <p>The CLI resolves config from (highest priority first):</p>
-  <ol>
+  <p>The <code>depends</code> command resolves config from (highest priority first):</p>
+  <ol style="padding-left: 1.5rem;">
     <li>Environment variables: <code>DEPENDS_TOKEN</code>, <code>DEPENDS_NAMESPACE</code>, <code>DEPENDS_API_URL</code></li>
     <li><code>~/.depends/config.yml</code> &mdash; <code>token</code>, <code>default_namespace</code>, <code>api_url</code></li>
     <li><code>depends.yml</code> in the current directory (for namespace)</li>
   </ol>
-  <p>If no token is configured, the CLI defaults to local mode (<code>dep_local</code> token against <code>localhost:3000</code>).</p>
+  <p>If no token is configured, the <code>depends</code> command defaults to local mode (<code>dep_local</code> token against <code>localhost:3000</code>).</p>
+</div>
+
+<h2>depends.yml</h2>
+
+<p>The <code>depends.yml</code> file defines your dependency graph as code. Push it with <code>depends push</code> or <code>PUT /v1/graph/:namespace</code>.</p>
+
+<div class="config-block">
+  <h3>Full example</h3>
+<pre><code>namespace: myproject
+
+nodes:
+  database:
+    label: PostgreSQL Primary
+
+  cache:
+    label: Redis
+    ttl: 5m
+
+  api-server:
+    label: API Server
+    depends_on:
+      - database
+      - cache
+    meta:
+      team: backend
+      region: eu-west-1
+
+  worker:
+    label: Background Worker
+    depends_on:
+      - api-server
+
+notifications:
+  ops-slack:
+    url: https://hooks.slack.com/services/T.../B.../xxx
+    watch: "*"
+    on: red
+    secret: my-hmac-secret
+
+  db-alert:
+    email: true
+    watch: database
+    on:
+      - red
+      - yellow
+    ack: true</code></pre>
+</div>
+
+<div class="config-block">
+  <h3>Node fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>label</code></td><td>string</td><td>Human-readable name</td></tr>
+    <tr><td><code>depends_on</code></td><td>string[]</td><td>List of node IDs this node depends on. Referenced nodes are auto-created if they don't exist.</td></tr>
+    <tr><td><code>meta</code></td><td>object</td><td>Arbitrary key-value metadata (team, region, etc.)</td></tr>
+    <tr><td><code>ttl</code></td><td>string</td><td>Auto-expire to yellow if no state write within this duration (e.g. <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>7d</code>)</td></tr>
+  </table>
+  <p>State is <strong>not</strong> set in the YAML &mdash; it's set at runtime via the API or the <code>depends</code> command. New nodes default to <code>yellow</code>.</p>
+</div>
+
+<div class="config-block">
+  <h3>Notification fields</h3>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>url</code></td><td>string</td><td>Webhook URL to POST to</td></tr>
+    <tr><td><code>email</code></td><td>boolean</td><td><code>true</code> to send to the token owner's email (alternative to <code>url</code>)</td></tr>
+    <tr><td><code>watch</code></td><td>string</td><td>Node ID to watch, or <code>*</code> for all (default: <code>*</code>)</td></tr>
+    <tr><td><code>on</code></td><td>string or string[]</td><td>Trigger on state: <code>red</code>, <code>yellow</code>, <code>green</code>, or <code>*</code> (default: <code>red</code>)</td></tr>
+    <tr><td><code>secret</code></td><td>string</td><td>HMAC-SHA256 signing secret for the webhook payload</td></tr>
+    <tr><td><code>ack</code></td><td>boolean</td><td>If true, suppresses after firing until acknowledged via the API</td></tr>
+  </table>
+  <p>Each rule must have at least one of <code>url</code> or <code>email</code>. Both can be set on the same rule.</p>
+</div>
+
+<div class="config-block">
+  <h3>Push options</h3>
+  <table>
+    <tr><th>Option</th><th>Description</th></tr>
+    <tr><td><code>depends push</code></td><td>Creates/updates nodes and edges. Existing nodes keep their current state.</td></tr>
+    <tr><td><code>depends push --prune</code></td><td>Also removes nodes that are <strong>not</strong> in the YAML file.</td></tr>
+  </table>
 </div>
 
 <h2>API Reference</h2>
@@ -65,9 +151,10 @@
 <div class="config-block">
   <h3>Authentication</h3>
   <p class="endpoint"><span class="method post">POST</span> /v1/signup</p>
-  <p>Create a new account. Returns a token (shown once).</p>
-<pre><code>curl -s -X POST https://depends.cc/v1/signup
-# {"token": "dep_..."}</code></pre>
+  <p>Create a new account. Body: <code>{"email": "you@example.com"}</code>. Your token will be emailed to you.</p>
+<pre><code>curl -s -X POST https://depends.cc/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com"}'</code></pre>
 </div>
 
 <div class="config-block">
@@ -147,6 +234,7 @@
   <ul>
     <li><code>id</code> &mdash; rule identifier</li>
     <li><code>url</code> &mdash; webhook URL</li>
+    <li><code>email</code> &mdash; <code>true</code> to email the token owner (alternative to <code>url</code>)</li>
     <li><code>watch</code> &mdash; node ID or <code>*</code> for all (default: <code>*</code>)</li>
     <li><code>on</code> &mdash; trigger state: <code>red</code>, <code>green</code>, <code>yellow</code>, comma-separated, or <code>*</code> (default: <code>red</code>)</li>
     <li><code>secret</code> &mdash; HMAC-SHA256 signing secret</li>
