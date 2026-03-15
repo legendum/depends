@@ -257,7 +257,7 @@ export function createApp(db: Database) {
 
           // Usage
           .get("/v1/usage/:namespace", ({ params, store }) =>
-            handleGetUsage(db, params.namespace, (store as { auth: AuthResult }).auth.plan)
+            handleGetUsage(db, params.namespace, (store as { auth: AuthResult }).auth.tokenId, (store as { auth: AuthResult }).auth.plan)
           )
     );
 

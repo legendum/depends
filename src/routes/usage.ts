@@ -3,6 +3,7 @@ import { Database } from "bun:sqlite";
 export function handleGetUsage(
   db: Database,
   namespace: string,
+  tokenId: string,
   plan: string
 ): Response {
   const now = new Date();
@@ -40,7 +41,12 @@ export function handleGetUsage(
     )
     .get(namespace) as { c: number };
 
+  const token = db
+    .query("SELECT email FROM tokens WHERE id = ?")
+    .get(tokenId) as { email: string | null } | null;
+
   return Response.json({
+    email: token?.email ?? null,
     namespace,
     plan,
     period,
