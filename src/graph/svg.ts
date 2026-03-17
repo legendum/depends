@@ -63,7 +63,7 @@ function arrowMarker(): string {
 
 export function renderSvg(graph: GraphData): string {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", nodesep: 40, ranksep: 60, marginx: 20, marginy: 20 });
+  g.setGraph({ rankdir: "BT", nodesep: 40, ranksep: 60, marginx: 20, marginy: 20 });
   g.setDefaultEdgeLabel(() => ({}));
 
   const nodeMeta = new Map<string, { width: number; height: number; lines: string[] }>();
