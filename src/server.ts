@@ -184,7 +184,7 @@ export function createApp(db: Database) {
               { method: "DELETE", path: "/v1/namespaces/:namespace", auth: "namespace", description: "Delete namespace and all data" },
               { method: "GET", path: "/v1/nodes/:namespace", auth: "namespace", description: "List all nodes" },
               { method: "GET", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Get single node detail" },
-              { method: "PUT", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Create/update node", body: { label: "string?", depends_on: "string[]?", meta: "string?", ttl: "string?" } },
+              { method: "PUT", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Create/update node", body: { label: "string?", depends_on: "string[]?", default_state: "string?", meta: "string?", ttl: "string?" } },
               { method: "DELETE", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Delete node" },
               { method: "PUT", path: "/v1/state/:namespace/:nodeId/:state", auth: "namespace", description: "Set node state (green/yellow/red)", headers: { "X-Depends-Reason": "string?", "X-Depends-Solution": "string?" } },
               { method: "GET", path: "/v1/events/:namespace[/:nodeId]", auth: "namespace", description: "List state change events", query: { limit: "number?", since: "ISO date?", until: "ISO date?" } },

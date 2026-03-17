@@ -5,6 +5,7 @@ import { wouldCreateCycle } from "./cycle";
 interface YamlNode {
   label?: string;
   depends_on?: string[];
+  default_state?: string;
   meta?: Record<string, unknown>;
 }
 
@@ -65,24 +66,29 @@ export function importYaml(
               `UPDATE nodes SET
                 label = COALESCE(?, label),
                 meta = COALESCE(?, meta),
+                default_state = COALESCE(?, default_state),
                 updated_at = datetime('now')
               WHERE ns_id = ? AND id = ?`
             ).run(
               node.label ?? null,
               node.meta ? JSON.stringify(node.meta) : null,
+              node.default_state ?? null,
               nsId,
               id
             );
           }
         } else {
           const nodeSpec = node || {};
+          const initState = nodeSpec.default_state ?? "yellow";
           db.query(
-            `INSERT INTO nodes (ns_id, id, label, state, meta)
-             VALUES (?, ?, ?, 'yellow', ?)`
+            `INSERT INTO nodes (ns_id, id, label, state, default_state, meta)
+             VALUES (?, ?, ?, ?, ?, ?)`
           ).run(
             nsId,
             id,
             nodeSpec.label ?? null,
+            initState,
+            nodeSpec.default_state ?? null,
             nodeSpec.meta ? JSON.stringify(nodeSpec.meta) : null
           );
         }
@@ -162,7 +168,7 @@ export function importYaml(
 export function exportYaml(db: Database, nsId: number, namespace: string): string {
   const nodes = db
     .query("SELECT * FROM nodes WHERE ns_id = ? ORDER BY id")
-    .all(nsId) as { id: string; label: string | null; meta: string | null }[];
+    .all(nsId) as { id: string; label: string | null; default_state: string | null; meta: string | null }[];
 
   const edges = db
     .query("SELECT * FROM edges WHERE ns_id = ? ORDER BY from_node, to_node")
@@ -185,6 +191,7 @@ export function exportYaml(db: Database, nsId: number, namespace: string): strin
   for (const node of nodes) {
     const entry: Record<string, unknown> = {};
     if (node.label) entry.label = node.label;
+    if (node.default_state) entry.default_state = node.default_state;
     const deps = edgeMap.get(node.id);
     if (deps && deps.length > 0) entry.depends_on = deps;
     if (node.meta) entry.meta = JSON.parse(node.meta);

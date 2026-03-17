@@ -6,6 +6,7 @@ import { dispatchNotifications } from "../notify/dispatcher";
 
 interface NodeBody {
   state?: string;
+  default_state?: string | null;
   reason?: string | null;
   solution?: string | null;
   label?: string;
@@ -72,6 +73,9 @@ export async function handlePutNode(
   if (body.state && !validStates.includes(body.state)) {
     return Response.json({ error: "Invalid state. Use green, yellow, or red." }, { status: 400 });
   }
+  if (body.default_state !== undefined && body.default_state !== null && !validStates.includes(body.default_state)) {
+    return Response.json({ error: "Invalid default_state. Use green, yellow, or red." }, { status: 400 });
+  }
 
   let ttlSeconds: number | null | undefined;
   if (body.ttl !== undefined) {
@@ -101,6 +105,7 @@ export async function handlePutNode(
     }
     if (body.reason !== undefined) { setParts.push("reason = ?"); params.push(body.reason); }
     if (body.solution !== undefined) { setParts.push("solution = ?"); params.push(body.solution); }
+    if (body.default_state !== undefined) { setParts.push("default_state = ?"); params.push(body.default_state); }
     if (body.meta !== undefined) { setParts.push("meta = ?"); params.push(JSON.stringify(body.meta)); }
     if (ttlSeconds !== undefined) { setParts.push("ttl = ?"); params.push(ttlSeconds); }
     setParts.push("updated_at = datetime('now')");
@@ -110,10 +115,11 @@ export async function handlePutNode(
       db.query(`UPDATE nodes SET ${setParts.join(", ")} WHERE ns_id = ? AND id = ?`).run(...params);
     }
   } else {
+    const initState = body.state ?? body.default_state ?? "yellow";
     db.query(
-      `INSERT INTO nodes (ns_id, id, label, state, reason, solution, meta, ttl)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(nsId, nodeId, body.label ?? null, state, body.reason ?? null, body.solution ?? null,
+      `INSERT INTO nodes (ns_id, id, label, state, default_state, reason, solution, meta, ttl)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(nsId, nodeId, body.label ?? null, initState, body.default_state ?? null, body.reason ?? null, body.solution ?? null,
       body.meta ? JSON.stringify(body.meta) : null, ttlSeconds ?? null);
   }
 
@@ -234,6 +240,7 @@ function formatNode(
     label: node.label ?? null,
     depends_on: dependsOn.map((e) => e.to_node),
     depended_on_by: dependedOnBy.map((e) => e.from_node),
+    default_state: node.default_state ?? null,
     ttl: ttl ? formatTtl(ttl) : null,
     meta: node.meta ? JSON.parse(node.meta as string) : null,
     state_changed_at: node.state_changed_at,

@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   id          TEXT NOT NULL,
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
+  default_state TEXT CHECK (default_state IN ('green', 'yellow', 'red')),
   meta        TEXT,
   reason      TEXT,
   solution    TEXT,

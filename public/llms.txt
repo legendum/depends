@@ -13,6 +13,7 @@ When a node's state changes, the "effective state" of all downstream dependents 
 - **Token**: An authentication credential. Prefix: `dep_`. Owns one or more namespaces.
 - **Reason**: Why a node is in its current state (e.g. "disk full on /var/data").
 - **Solution**: What to do about it (e.g. "Clear /var/log, expand volume").
+- **default_state**: Initial state for new nodes (default: yellow). Set to green for aggregator nodes that only reflect their dependencies.
 
 ## CLI quick reference
 

@@ -93,6 +93,13 @@ nodes:
     depends_on:
       - api-server
 
+  platform:
+    label: Platform Health
+    default_state: green
+    depends_on:
+      - api-server
+      - worker
+
 notifications:
   ops-slack:
     url: https://hooks.slack.com/services/T.../B.../xxx
@@ -115,10 +122,11 @@ notifications:
     <tr><th>Field</th><th>Type</th><th>Description</th></tr>
     <tr><td><code>label</code></td><td>string</td><td>Human-readable name</td></tr>
     <tr><td><code>depends_on</code></td><td>string[]</td><td>List of node IDs this node depends on. Referenced nodes are auto-created if they don't exist.</td></tr>
+    <tr><td><code>default_state</code></td><td>string</td><td>Initial state for new nodes: <code>green</code>, <code>yellow</code>, or <code>red</code>. Useful for aggregator nodes that only reflect their dependencies &mdash; set to <code>green</code> so the node is transparent.</td></tr>
     <tr><td><code>meta</code></td><td>object</td><td>Arbitrary key-value metadata (team, region, etc.)</td></tr>
     <tr><td><code>ttl</code></td><td>string</td><td>Auto-expire to yellow if no state write within this duration (e.g. <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>7d</code>)</td></tr>
   </table>
-  <p>State is <strong>not</strong> set in the YAML &mdash; it's set at runtime via the API or the <code>depends</code> command. New nodes default to <code>yellow</code>.</p>
+  <p>State is <strong>not</strong> set in the YAML &mdash; it's set at runtime via the API or the <code>depends</code> command. New nodes default to <code>yellow</code> unless <code>default_state</code> is specified.</p>
 </div>
 
 <div class="config-block">

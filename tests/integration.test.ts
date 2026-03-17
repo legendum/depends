@@ -264,6 +264,87 @@ describe("nodes", () => {
   });
 });
 
+describe("default_state", () => {
+  test("node with default_state starts in that state", async () => {
+    const res = await api(`/nodes/${NS}/aggregator`, {
+      method: "PUT",
+      body: { default_state: "green", depends_on: ["database"] },
+    });
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.state).toBe("green");
+    expect(data.default_state).toBe("green");
+  });
+
+  test("explicit state overrides default_state on creation", async () => {
+    const res = await api(`/nodes/${NS}/agg2`, {
+      method: "PUT",
+      body: { state: "red", default_state: "green" },
+    });
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.state).toBe("red");
+    expect(data.default_state).toBe("green");
+  });
+
+  test("invalid default_state returns 400", async () => {
+    const res = await api(`/nodes/${NS}/bad-default`, {
+      method: "PUT",
+      body: { default_state: "purple" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test("default_state can be cleared with null", async () => {
+    await api(`/nodes/${NS}/aggregator`, {
+      method: "PUT",
+      body: { default_state: null },
+    });
+    const data = await (await api(`/nodes/${NS}/aggregator`)).json();
+    expect(data.default_state).toBeNull();
+  });
+
+  test("aggregator node reflects dependency state", async () => {
+    // Recreate aggregator with default_state green
+    await api(`/nodes/${NS}/aggregator`, {
+      method: "PUT",
+      body: { state: "green", default_state: "green", depends_on: ["database"] },
+    });
+    // Set database to red
+    await api(`/state/${NS}/database/red`, { method: "PUT" });
+
+    const data = await (await api(`/nodes/${NS}/aggregator`)).json();
+    expect(data.state).toBe("green");
+    expect(data.effective_state).toBe("red");
+  });
+
+  test("YAML import uses default_state for new nodes", async () => {
+    const yaml = `
+namespace: ${NS}
+nodes:
+  yaml-agg:
+    default_state: green
+    depends_on:
+      - database
+`;
+    await api(`/graph/${NS}`, {
+      method: "PUT",
+      body: yaml,
+      contentType: "application/yaml",
+    });
+
+    const data = await (await api(`/nodes/${NS}/yaml-agg`)).json();
+    expect(data.state).toBe("green");
+    expect(data.default_state).toBe("green");
+  });
+
+  test("YAML export includes default_state", async () => {
+    const res = await api(`/graph/${NS}?format=yaml`);
+    const text = await res.text();
+    expect(text).toContain("default_state: green");
+  });
+});
+
 describe("state shorthand", () => {
   test("set state on existing node", async () => {
     // Reset database to green
