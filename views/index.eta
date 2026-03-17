@@ -64,7 +64,7 @@
     <span class="light"><span class="dot green"></span> <strong>Green</strong></span> <span>healthy, operating normally</span>
   </div>
 
-  <p style="margin-top: 1.25rem;">When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service downstream is effectively red too &mdash; automatically, without updating each one:</p>
+  <p style="margin-top: 1.25rem;">When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service that depends on it is effectively red too &mdash; automatically, without updating each one:</p>
 
   <div class="tree" style="padding-left: 1rem;">
     <span class="red">&#9679;</span> database <span class="dim">&mdash; disk full on /var/data</span><br>

@@ -75,7 +75,8 @@ export function renderSvg(graph: GraphData): string {
   }
 
   for (const edge of graph.edges) {
-    g.setEdge(edge.from, edge.to);
+    // Reverse direction: arrows show how state propagates (dependency → dependent)
+    g.setEdge(edge.to, edge.from);
   }
 
   dagre.layout(g);
