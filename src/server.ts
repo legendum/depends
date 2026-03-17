@@ -208,12 +208,16 @@ export function createApp(db: Database) {
     // Namespace status via Basic Auth
     .get("/ns/:namespace", async ({ params, request, server }) => {
       const ns = params.namespace;
-      const json = ns.endsWith(".json");
-      const namespace = json ? ns.slice(0, -5) : ns;
+      const format = ns.endsWith(".json") ? "json" : ns.endsWith(".yaml") ? "yaml" : "text";
+      const namespace = format !== "text" ? ns.slice(0, ns.lastIndexOf(".")) : ns;
       const a = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
       if (a instanceof Response) return a;
-      const res = handleListNodes(db, a.nsId, namespace);
-      return json ? res : formatNodesAsText(res);
+      if (format === "json") return handleListNodes(db, a.nsId, namespace);
+      if (format === "yaml") {
+        const { exportYaml } = await import("./graph/yaml");
+        return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "application/yaml" } });
+      }
+      return formatNodesAsText(handleListNodes(db, a.nsId, namespace));
     })
 
     // Unauthenticated: signup

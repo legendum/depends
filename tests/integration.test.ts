@@ -734,6 +734,18 @@ describe("status page /ns/:namespace", () => {
     const ids = data.map((n: { id: string }) => n.id).sort();
     expect(ids).toEqual(["api", "db"]);
   });
+
+  test("yaml response returns valid YAML graph", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.yaml`, {
+      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/yaml");
+    const text = await res.text();
+    expect(text).toContain("namespace:");
+    expect(text).toContain("db");
+    expect(text).toContain("api");
+  });
 });
 
 describe("namespace deletion", () => {
