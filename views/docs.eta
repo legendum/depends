@@ -275,13 +275,23 @@ notifications:
   <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace.yaml</p>
   <p>Full graph as YAML &mdash; nodes, edges, and notification rules. Same format as <code>depends.yml</code>.</p>
 
-<pre><code># Plain text
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace/:nodeId</p>
+  <p>Single node detail in plain text. Shows state, label, reason, solution, and edges.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace/:nodeId.json</p>
+  <p>Single node detail as JSON. Identical output to <code>GET /v1/nodes/:namespace/:nodeId</code>.</p>
+
+<pre><code># All nodes (plain text)
 curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject
 
-# JSON
+# All nodes (JSON)
 curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.json
 
-# YAML (full graph)
-curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.yaml</code></pre>
+# Full graph (YAML)
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.yaml
+
+# Single node
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject/database
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject/database.json</code></pre>
   <p>In a browser, visiting <code>/ns/myproject</code> will prompt for credentials.</p>
 </div>
