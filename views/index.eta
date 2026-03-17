@@ -58,7 +58,7 @@
   <p>depends.cc tracks the state of things (nodes) and what they depend on.</p>
   <p>Each node is a traffic light:</p>
 
-  <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; padding-left: 1rem; align-items: center;">
+  <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; padding-left: 1rem; align-items: flex-start;">
     <span class="light"><span class="dot red"></span> <strong>Red</strong></span> <span>errored, blocked, or unreachable</span>
     <span class="light"><span class="dot yellow"></span> <strong>Yellow</strong></span> <span>pending, deploying, or unknown</span>
     <span class="light"><span class="dot green"></span> <strong>Green</strong></span> <span>healthy, operating normally</span>
