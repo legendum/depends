@@ -219,9 +219,9 @@ export function createApp(db: Database) {
     })
 
     // Namespace status via Basic Auth
-    .get("/ns/*", async ({ request, server }) => {
-      const url = new URL(request.url);
-      const parts = url.pathname.slice(4).split("/"); // strip "/ns/"
+    .get("/ns/*", async ({ params, request, server }) => {
+      const wildcard = params["*"];
+      const parts = wildcard.split("/");
       if (parts.length < 1 || !parts[0]) return new Response("Not Found", { status: 404 });
 
       // Single node: /ns/:namespace/:node[.json]
