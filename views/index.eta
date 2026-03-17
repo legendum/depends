@@ -77,15 +77,6 @@
 <h2>How it works</h2>
 
 <div class="config-block">
-  <h3>Push state</h3>
-  <p>Services report their own health via a single PUT. No polling, no agents.</p>
-<pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
-  -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data" \
-  -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
-</div>
-
-<div class="config-block">
   <h3>Dependency graph</h3>
   <p>Define what depends on what. Effective state propagates automatically. Commit it to source control as YAML.</p>
 <pre><code>namespace: myproject
@@ -123,8 +114,19 @@ nodes:
 </div>
 
 <div class="config-block">
+  <h3>Push state (red/yellow/green)</h3>
+  <p>Services report their own health via a single PUT. No polling, no agents.</p>
+<pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
+  -H "Authorization: Bearer $DEPENDS_TOKEN"</code></pre>
+</div>
+
+<div class="config-block">
   <h3>Reason &amp; solution</h3>
-  <p>Attach context: <em>why</em> is this red, and <em>what should I do?</em></p>
+  <p>Attach human-readable context on every state change: why it's happening, and what to do next.</p>
+<pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
+  -H "Authorization: Bearer $DEPENDS_TOKEN" \
+  -H "X-Depends-Reason: disk full on /var/data" \
+  -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
 </div>
 
 <div class="config-block">

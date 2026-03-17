@@ -721,6 +721,7 @@ interface Event {
   previous_effective_state: string | null;
   new_effective_state: string;
   reason: string | null;
+  solution: string | null;
   created_at: string;
 }
 
@@ -767,9 +768,15 @@ async function cmdEvents(config: Config, args: string[]) {
   for (const e of events) {
     const prev = e.previous_state ? colorState(e.previous_state) : `${COLORS.dim}(new)${COLORS.reset}`;
     const arrow = `${COLORS.dim}→${COLORS.reset}`;
-    const reason = e.reason ? ` ${COLORS.dim}— ${e.reason}${COLORS.reset}` : "";
+    let context = "";
+    if (e.reason || e.solution) {
+      const parts = [];
+      if (e.reason) parts.push(e.reason);
+      if (e.solution) parts.push(`solution: ${e.solution}`);
+      context = ` ${COLORS.dim}— ${parts.join("; ")}${COLORS.reset}`;
+    }
     const time = `${COLORS.dim}${e.created_at}${COLORS.reset}`;
-    console.log(`  ${time}  ${e.node_id}  ${prev} ${arrow} ${colorState(e.new_state)}${reason}`);
+    console.log(`  ${time}  ${e.node_id}  ${prev} ${arrow} ${colorState(e.new_state)}${context}`);
   }
 }
 
