@@ -64,7 +64,7 @@
     <span class="light"><span class="dot green"></span> <strong>Green</strong></span> <span>healthy, operating normally</span>
   </div>
 
-  <p>When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service upstream is effectively red too &mdash; automatically, without updating each one:</p>
+  <p style="margin-top: 1.25rem;">When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service downstream is effectively red too &mdash; automatically, without updating each one:</p>
 
   <div class="tree" style="padding-left: 1rem;">
     <span class="red">&#9679;</span> database <span class="dim">&mdash; disk full on /var/data</span><br>
@@ -106,8 +106,20 @@ nodes:
 </div>
 
 <div class="config-block">
-  <h3>Webhooks</h3>
-  <p>Get notified when things change. HMAC-signed, with retries.</p>
+  <h3>Webhooks and email notifications</h3>
+  <p>Get notified when things change. HMAC-signed, with retries. Configure alerts right in your <code>depends.yml</code>:</p>
+<pre><code>notifications:
+  slack-on-outage:
+    watch: "*"
+    on: red
+    url: https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX
+    secret: whsec_...
+
+  email-on-outage:
+    watch: "*"
+    on: red
+    email: ops@example.com
+    ack: true</code></pre>
 </div>
 
 <div class="config-block">
