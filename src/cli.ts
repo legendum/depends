@@ -273,6 +273,19 @@ async function cmdPull(config: Config, args: string[]) {
   console.log(`Pulled graph from namespace "${ns}" into depends.yml.`);
 }
 
+async function cmdShow(config: Config, args: string[]) {
+  const ns = getNamespace(config, args);
+
+  const res = await api(config, `/graph/${ns}?format=yaml`);
+  if (!res.ok) {
+    console.error(`Error: ${await errorMsg(res)}`);
+    process.exit(1);
+  }
+
+  const yamlContent = await res.text();
+  process.stdout.write(yamlContent);
+}
+
 interface StatusNode {
   id: string;
   state: string;
@@ -863,6 +876,7 @@ ${COLORS.bold}Usage:${COLORS.reset}
   depends init                                Create a depends.yml in the current directory
   depends push [--prune]                      Upload depends.yml (auto-creates namespace)
   depends pull                                Download graph as depends.yml
+  depends show                                Print the current spec (YAML) without saving
   depends status [<node-id>]                  Show node states (color-coded)
   depends set [<namespace>/]<node-id> <state> Set a node's state (green/yellow/red)
   depends graph                               Print dependency tree
@@ -937,6 +951,9 @@ async function main() {
       break;
     case "pull":
       await cmdPull(config, args);
+      break;
+    case "show":
+      await cmdShow(config, args);
       break;
     case "status":
       await cmdStatus(config, args);
