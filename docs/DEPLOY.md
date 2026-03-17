@@ -25,13 +25,13 @@ Server runs on `http://localhost:3000` by default. Set `PORT` env var to change.
 ```nginx
 server {
     listen 80;
-    server_name depends.cc;
-    return 301 https://$host$request_uri;
+    server_name depends.cc www.depends.cc;
+    return 301 https://depends.cc$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name depends.cc;
+    server_name depends.cc www.depends.cc;
 
     ssl_certificate /etc/letsencrypt/live/depends.cc/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/depends.cc/privkey.pem;
