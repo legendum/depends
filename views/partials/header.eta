@@ -1,5 +1,11 @@
 <header>
   <a href="/"><img src="/logo.png" alt="depends.cc"></a>
   <p><%= it.subtitle ?? "Lightweight dependency state tracking. Push state in, get webhooks out." %></p>
-  <nav><a href="/">Home</a> <a href="/pricing">Pricing</a> <a href="/docs">Docs</a> <a href="/mcp">MCP</a> <a href="/signup">Sign up</a></nav>
+  <nav>
+    <a href="/"<% if (it.nav === "home") { %> style="font-weight: 600;"<% } %>>Home</a>
+    <a href="/pricing"<% if (it.nav === "pricing") { %> style="font-weight: 600;"<% } %>>Pricing</a>
+    <a href="/docs"<% if (it.nav === "docs") { %> style="font-weight: 600;"<% } %>>Docs</a>
+    <a href="/mcp"<% if (it.nav === "mcp") { %> style="font-weight: 600;"<% } %>>MCP</a>
+    <a href="/signup"<% if (it.nav === "signup") { %> style="font-weight: 600;"<% } %>>Sign up</a>
+  </nav>
 </header>

@@ -13,9 +13,9 @@
     text-align: center;
   }
 
-  .signup-box p {
-    text-align: center;
-  }
+.signup-box p {
+  text-align: left;
+}
 
   .step {
     margin: 1.5rem 0;
@@ -44,7 +44,7 @@
 
 <div class="signup-box">
   <h2>Sign up</h2>
-  <p>Get started in under a minute. Free tier, no credit card required.</p>
+  <p>Get started in under a minute.<br>Free tier, no credit card required.</p>
 
   <div class="step">
     <span class="step-num">1</span>
@@ -55,7 +55,6 @@
   <div class="step">
     <span class="step-num">2</span>
     <h3>Sign up with your email</h3>
-    <p>Use the CLI:</p>
 <pre><code>depends signup you@example.com</code></pre>
     <p>Or curl:</p>
 <pre><code>curl -s -X POST https://depends.cc/v1/signup \
@@ -76,5 +75,14 @@
     <h3>Push and go</h3>
 <pre><code>depends push
 depends status</code></pre>
+  </div>
+
+  <div class="step">
+    <span class="step-num">5</span>
+    <h3>Set a node's state</h3>
+<pre><code>depends set myproject/database red \
+  --reason "disk full on /var/data" \
+  --solution "clear logs, increase volume"</code></pre>
+    <p>Replace <code>myproject/database</code> with your own namespace and node ID.</p>
   </div>
 </div>

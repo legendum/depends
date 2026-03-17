@@ -156,13 +156,13 @@ export function createApp(db: Database) {
     }))
 
     // Homepage
-    .get("/", () => render("index", { title: "depends.cc — dependency state tracking" }))
-    .get("/pricing", () => render("pricing", { title: "Pricing — depends.cc" }))
-    .get("/signup", () => render("signup", { title: "Sign up — depends.cc" }))
+    .get("/", () => render("index", { title: "depends.cc — dependency state tracking", nav: "home" }))
+    .get("/pricing", () => render("pricing", { title: "Pricing — depends.cc", nav: "pricing" }))
+    .get("/signup", () => render("signup", { title: "Sign up — depends.cc", nav: "signup" }))
     .get("/license", () => render("license", { title: "License — depends.cc" }))
     .get("/privacy", () => render("privacy", { title: "Privacy — depends.cc" }))
     .get("/terms", () => render("terms", { title: "Terms — depends.cc" }))
-    .get("/mcp", () => render("mcp", { title: "MCP Server — depends.cc" }))
+    .get("/mcp", () => render("mcp", { title: "MCP Server — depends.cc", nav: "mcp" }))
 
     // Docs
     .get("/docs", ({ request }) => {
@@ -217,7 +217,7 @@ export function createApp(db: Database) {
           },
         });
       }
-      return render("docs", { title: "Docs — depends.cc" });
+      return render("docs", { title: "Docs — depends.cc", nav: "docs" });
     })
 
     // Namespace status via Basic Auth
