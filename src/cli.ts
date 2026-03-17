@@ -109,6 +109,15 @@ async function api(
   });
 }
 
+async function errorMsg(res: Response): Promise<string> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text).error || text;
+  } catch {
+    return text;
+  }
+}
+
 // --- Color helpers ---
 
 const COLORS = {
@@ -226,8 +235,7 @@ async function cmdPush(config: Config, args: string[]) {
     contentType: "application/json",
   });
   if (!createRes.ok && createRes.status !== 409) {
-    const data = await createRes.json();
-    console.error(`Error creating namespace: ${data.error}`);
+    console.error(`Error creating namespace: ${await errorMsg(createRes)}`);
     process.exit(1);
   }
   if (createRes.status === 201) {
@@ -244,8 +252,7 @@ async function cmdPush(config: Config, args: string[]) {
   });
 
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -257,8 +264,7 @@ async function cmdPull(config: Config, args: string[]) {
 
   const res = await api(config, `/graph/${ns}?format=yaml`);
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -320,8 +326,7 @@ async function cmdStatus(config: Config, args: string[]) {
   // All nodes
   const res = await api(config, `/nodes/${ns}`);
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
   const nodes: StatusNode[] = await res.json();
@@ -391,8 +396,7 @@ async function cmdSet(config: Config, args: string[]) {
   });
 
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -410,8 +414,7 @@ async function cmdGraph(config: Config, args: string[]) {
 
   const res = await api(config, `/graph/${ns}`);
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -559,8 +562,7 @@ async function cmdDelete(config: Config, args: string[]) {
   const res = await api(config, `/namespaces/${ns}`, { method: "DELETE" });
 
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -673,8 +675,7 @@ async function cmdUsage(config: Config, args: string[]) {
 
   const res = await api(config, `/usage/${ns}`);
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 
@@ -734,8 +735,7 @@ async function cmdEvents(config: Config, args: string[]) {
 
   const res = await api(config, path);
   if (!res.ok) {
-    const data = await res.json();
-    console.error(`Error: ${data.error}`);
+    console.error(`Error: ${await errorMsg(res)}`);
     process.exit(1);
   }
 

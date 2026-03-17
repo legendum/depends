@@ -49,6 +49,51 @@ function ensureLocalToken(db: Database) {
   ).run();
 }
 
+const BASIC_AUTH_CHALLENGE = new Response("Unauthorized", {
+  status: 401,
+  headers: { "WWW-Authenticate": 'Basic realm="depends.cc"' },
+});
+
+async function authenticateBasic(
+  db: Database,
+  namespace: string,
+  request: Request,
+  isLocal: boolean
+): Promise<AuthResult | Response> {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader?.startsWith("Basic ")) return BASIC_AUTH_CHALLENGE;
+
+  const decoded = atob(authHeader.slice(6));
+  const colonIdx = decoded.indexOf(":");
+  if (colonIdx === -1) return BASIC_AUTH_CHALLENGE;
+
+  // username=email, password=token
+  const token = decoded.slice(colonIdx + 1);
+
+  const auth = await verifyToken(db, namespace, token, isLocal);
+  if (!auth) return BASIC_AUTH_CHALLENGE;
+  return auth;
+}
+
+function formatNodesAsText(jsonRes: Response): Response {
+  const clone = jsonRes.clone();
+  return new Response(
+    clone.json().then((nodes: Array<{ id: string; state: string; effective_state: string; label: string | null; reason: string | null }>) => {
+      if (nodes.length === 0) return "No nodes in this namespace.\n";
+      const maxId = Math.max(...nodes.map((n) => n.id.length));
+      const lines = nodes.map((n) => {
+        const id = n.id.padEnd(maxId);
+        const eff = n.state !== n.effective_state ? ` (effective: ${n.effective_state})` : "";
+        const label = n.label ? ` ${n.label}` : "";
+        const reason = n.reason ? ` — ${n.reason}` : "";
+        return `  ${id}  ${n.state}${eff}${label}${reason}`;
+      });
+      return lines.join("\n") + "\n";
+    }),
+    { headers: { "Content-Type": "text/plain; charset=utf-8" } }
+  );
+}
+
 export function createApp(db: Database) {
   ensureLocalToken(db);
 
@@ -144,6 +189,17 @@ export function createApp(db: Database) {
         });
       }
       return render("docs", { title: "Docs — depends.cc" });
+    })
+
+    // Namespace status via Basic Auth (username=email, password=token)
+    .get("/ns/:namespace", async ({ params, request, server }) => {
+      const ns = params.namespace;
+      const json = ns.endsWith(".json");
+      const namespace = json ? ns.slice(0, -5) : ns;
+      const auth = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
+      if (auth instanceof Response) return auth;
+      const res = handleListNodes(db, namespace);
+      return json ? res : formatNodesAsText(res);
     })
 
     // Unauthenticated: signup (creates a token)
