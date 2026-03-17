@@ -94,6 +94,19 @@ async function formatNodesAsText(jsonRes: Response): Promise<Response> {
   return new Response(lines.join("\n") + "\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
+async function formatNodeAsText(jsonRes: Response): Promise<Response> {
+  if (jsonRes.status === 404) return new Response("Node not found.\n", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  const n = await jsonRes.json() as { id: string; state: string; effective_state: string; label: string | null; reason: string | null; solution: string | null; depends_on: string[]; depended_on_by: string[] };
+  const lines: string[] = [];
+  lines.push(`${n.id}  ${n.state}${n.state !== n.effective_state ? ` (effective: ${n.effective_state})` : ""}`);
+  if (n.label) lines.push(`  label: ${n.label}`);
+  if (n.reason) lines.push(`  reason: ${n.reason}`);
+  if (n.solution) lines.push(`  solution: ${n.solution}`);
+  if (n.depends_on.length > 0) lines.push(`  depends_on: ${n.depends_on.join(", ")}`);
+  if (n.depended_on_by.length > 0) lines.push(`  depended_on_by: ${n.depended_on_by.join(", ")}`);
+  return new Response(lines.join("\n") + "\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+}
+
 /** Helper to extract auth from store */
 function auth(store: unknown): AuthResult {
   return (store as { auth: AuthResult }).auth;
@@ -218,6 +231,16 @@ export function createApp(db: Database) {
         return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
       return formatNodesAsText(handleListNodes(db, a.nsId, namespace));
+    })
+    .get("/ns/:namespace/:node", async ({ params, request, server }) => {
+      const nd = params.node;
+      const json = nd.endsWith(".json");
+      const nodeId = json ? nd.slice(0, -5) : nd;
+      const a = await authenticateBasic(db, params.namespace, request, isLocalRequest(request, server));
+      if (a instanceof Response) return a;
+      const res = handleGetNode(db, a.nsId, params.namespace, nodeId);
+      if (json) return res;
+      return formatNodeAsText(res);
     })
 
     // Unauthenticated: signup
