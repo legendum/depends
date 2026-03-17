@@ -389,8 +389,12 @@ export function createServer(db: Database, port: number = PORT) {
 if (import.meta.main) {
   const { purgeExpiredEvents } = await import("./purge");
 
+  const args = process.argv.slice(2);
+  const portIdx = args.indexOf("-p");
+  const port = portIdx !== -1 && args[portIdx + 1] ? parseInt(args[portIdx + 1], 10) : PORT;
+
   const db = createDb(join(import.meta.dir, "..", "data", "depends.db"));
-  const server = createServer(db, PORT);
+  const server = createServer(db, port);
   console.log(`depends.cc listening on http://localhost:${server.port}`);
 
   setInterval(() => purgeExpiredEvents(db), 60 * 60 * 1000);
