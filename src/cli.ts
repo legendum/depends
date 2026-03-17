@@ -905,18 +905,23 @@ async function main() {
     process.exit(0);
   }
 
-  const config = loadConfig();
-
+  // Commands that don't need a config/token
   switch (command) {
     case "serve":
       await cmdServe(args);
       return;
     case "update":
       await cmdUpdate();
-      break;
+      return;
     case "signup":
-      await cmdSignup(config, args);
-      break;
+      // Always use production API for signup — never local mode
+      await cmdSignup({ api_url: process.env.DEPENDS_API_URL ?? "https://depends.cc/v1" }, args);
+      return;
+  }
+
+  const config = loadConfig();
+
+  switch (command) {
     case "init":
       await cmdInit();
       break;
