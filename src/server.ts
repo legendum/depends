@@ -80,22 +80,18 @@ async function authenticateBasic(
   return auth;
 }
 
-function formatNodesAsText(jsonRes: Response): Response {
-  return new Response(
-    jsonRes.json().then((nodes: Array<{ id: string; state: string; effective_state: string; label: string | null; reason: string | null }>) => {
-      if (nodes.length === 0) return "No nodes in this namespace.\n";
-      const maxId = Math.max(...nodes.map((n) => n.id.length));
-      const lines = nodes.map((n) => {
-        const id = n.id.padEnd(maxId);
-        const eff = n.state !== n.effective_state ? ` (effective: ${n.effective_state})` : "";
-        const label = n.label ? ` ${n.label}` : "";
-        const reason = n.reason ? ` — ${n.reason}` : "";
-        return `  ${id}  ${n.state}${eff}${label}${reason}`;
-      });
-      return lines.join("\n") + "\n";
-    }),
-    { headers: { "Content-Type": "text/plain; charset=utf-8" } }
-  );
+async function formatNodesAsText(jsonRes: Response): Promise<Response> {
+  const nodes = await jsonRes.json() as Array<{ id: string; state: string; effective_state: string; label: string | null; reason: string | null }>;
+  if (nodes.length === 0) return new Response("No nodes in this namespace.\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  const maxId = Math.max(...nodes.map((n) => n.id.length));
+  const lines = nodes.map((n) => {
+    const id = n.id.padEnd(maxId);
+    const eff = n.state !== n.effective_state ? ` (effective: ${n.effective_state})` : "";
+    const label = n.label ? ` ${n.label}` : "";
+    const reason = n.reason ? ` — ${n.reason}` : "";
+    return `  ${id}  ${n.state}${eff}${label}${reason}`;
+  });
+  return new Response(lines.join("\n") + "\n", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
 /** Helper to extract auth from store */
@@ -112,7 +108,7 @@ export function createApp(db: Database) {
       return { requestStart: Date.now(), requestUrl: new URL(request.url) };
     })
     .onAfterResponse(({ request, requestStart, requestUrl, set }) => {
-      const url = requestUrl;
+      const url = requestUrl ?? new URL(request.url);
       if (url.pathname === "/favicon.png" || url.pathname === "/logo.png") return;
       logRequest({
         ts: new Date().toISOString(),
@@ -120,7 +116,7 @@ export function createApp(db: Database) {
         path: url.pathname,
         query: url.search || undefined,
         status: set.status ?? 200,
-        ms: Date.now() - requestStart,
+        ms: Date.now() - (requestStart ?? Date.now()),
       });
     })
 

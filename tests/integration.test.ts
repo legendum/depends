@@ -670,6 +670,72 @@ describe("plan limits", () => {
   });
 });
 
+describe("status page /ns/:namespace", () => {
+  let nsToken: string;
+  const nsName = "status-test";
+
+  test("setup: create token and namespace with nodes", async () => {
+    nsToken = generateToken();
+    const hash = await hashToken(nsToken);
+    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "status@example.com");
+
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/v1/namespaces`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: nsName }),
+    });
+    expect(res.status).toBe(201);
+
+    await fetch(`${baseUrl}/nodes/${nsName}/db`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ state: "green", label: "Database" }),
+    });
+    await fetch(`${baseUrl}/nodes/${nsName}/api`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ state: "red", label: "API", depends_on: ["db"] }),
+    });
+  });
+
+  test("returns 401 without credentials", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}`);
+    expect(res.status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toContain("depends.cc");
+  });
+
+  test("returns 401 with wrong credentials", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}`, {
+      headers: { Authorization: "Basic " + btoa("status@example.com:dep_wrong") },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("text response is valid plain text (not [object Promise])", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}`, {
+      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+    });
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("[object Promise]");
+    expect(text).toContain("db");
+    expect(text).toContain("api");
+    expect(res.headers.get("Content-Type")).toContain("text/plain");
+  });
+
+  test("json response returns valid JSON array", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.json`, {
+      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+    });
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(Array.isArray(data)).toBe(true);
+    expect(data.length).toBe(2);
+    const ids = data.map((n: { id: string }) => n.id).sort();
+    expect(ids).toEqual(["api", "db"]);
+  });
+});
+
 describe("namespace deletion", () => {
   test("delete cascades everything", async () => {
     // Create a token directly
