@@ -219,8 +219,25 @@ export function createApp(db: Database) {
     })
 
     // Namespace status via Basic Auth
-    .get("/ns/:namespace", async ({ params, request, server }) => {
-      const ns = params.namespace;
+    .get("/ns/*", async ({ request, server }) => {
+      const url = new URL(request.url);
+      const parts = url.pathname.slice(4).split("/"); // strip "/ns/"
+      if (parts.length < 1 || !parts[0]) return new Response("Not Found", { status: 404 });
+
+      // Single node: /ns/:namespace/:node[.json]
+      if (parts.length >= 2 && parts[1]) {
+        const nd = parts[1];
+        const json = nd.endsWith(".json");
+        const nodeId = json ? nd.slice(0, -5) : nd;
+        const a = await authenticateBasic(db, parts[0], request, isLocalRequest(request, server));
+        if (a instanceof Response) return a;
+        const res = handleGetNode(db, a.nsId, parts[0], nodeId);
+        if (json) return res;
+        return formatNodeAsText(res);
+      }
+
+      // All nodes: /ns/:namespace[.json|.yaml]
+      const ns = parts[0];
       const format = ns.endsWith(".json") ? "json" : ns.endsWith(".yaml") ? "yaml" : "text";
       const namespace = format !== "text" ? ns.slice(0, ns.lastIndexOf(".")) : ns;
       const a = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
@@ -231,16 +248,6 @@ export function createApp(db: Database) {
         return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
       return formatNodesAsText(handleListNodes(db, a.nsId, namespace));
-    })
-    .get("/ns/:namespace/:node", async ({ params, request, server }) => {
-      const nd = params.node;
-      const json = nd.endsWith(".json");
-      const nodeId = json ? nd.slice(0, -5) : nd;
-      const a = await authenticateBasic(db, params.namespace, request, isLocalRequest(request, server));
-      if (a instanceof Response) return a;
-      const res = handleGetNode(db, a.nsId, params.namespace, nodeId);
-      if (json) return res;
-      return formatNodeAsText(res);
     })
 
     // Unauthenticated: signup
