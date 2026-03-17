@@ -38,6 +38,7 @@ describe("auth", () => {
     const result = await verifyToken(db, "myns", token);
     expect(result).not.toBeNull();
     expect(result!.tokenId).toBe(Number(tokenId));
+    expect(result!.nsId).toBeGreaterThan(0);
     expect(result!.plan).toBe("free");
     db.close();
   });
@@ -68,7 +69,7 @@ describe("auth", () => {
     db.close();
   });
 
-  test("verifyTokenOnly returns AuthResult without namespace check", async () => {
+  test("verifyTokenOnly returns result without namespace check", async () => {
     const db = createTestDb();
     const token = "dep_only";
     const hash = await hashToken(token);
@@ -84,6 +85,25 @@ describe("auth", () => {
   test("verifyTokenOnly returns null for bad token", async () => {
     const db = createTestDb();
     expect(await verifyTokenOnly(db, "dep_nope")).toBeNull();
+    db.close();
+  });
+
+  test("same namespace name with different tokens returns correct nsId", async () => {
+    const db = createTestDb();
+    const token1 = "dep_user1";
+    const token2 = "dep_user2";
+    const hash1 = await hashToken(token1);
+    const hash2 = await hashToken(token2);
+    const { lastInsertRowid: tokId1 } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash1);
+    const { lastInsertRowid: tokId2 } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash2);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tokId1);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tokId2);
+
+    const r1 = await verifyToken(db, "api", token1);
+    const r2 = await verifyToken(db, "api", token2);
+    expect(r1).not.toBeNull();
+    expect(r2).not.toBeNull();
+    expect(r1!.nsId).not.toBe(r2!.nsId);
     db.close();
   });
 });

@@ -14,35 +14,31 @@ interface NodeBody {
   meta?: Record<string, unknown>;
 }
 
-function checkNodeLimit(db: Database, namespace: string, plan: string): Response | null {
+function checkNodeLimit(db: Database, nsId: number, plan: string): Response | null {
   const limits = PLAN_LIMITS[plan];
   const count = db
-    .query("SELECT COUNT(*) as c FROM nodes WHERE namespace = ?")
-    .get(namespace) as { c: number };
+    .query("SELECT COUNT(*) as c FROM nodes WHERE ns_id = ?")
+    .get(nsId) as { c: number };
   if (count.c >= limits.nodes) {
     return Response.json(
-      {
-        error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.`,
-      },
+      { error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.` },
       { status: 402 }
     );
   }
   return null;
 }
 
-function checkEventLimit(db: Database, namespace: string, plan: string): Response | null {
+function checkEventLimit(db: Database, nsId: number, plan: string): Response | null {
   const limits = PLAN_LIMITS[plan];
   const count = db
     .query(
       `SELECT COUNT(*) as c FROM events
-       WHERE namespace = ? AND created_at >= datetime('now', 'start of month')`
+       WHERE ns_id = ? AND created_at >= datetime('now', 'start of month')`
     )
-    .get(namespace) as { c: number };
+    .get(nsId) as { c: number };
   if (count.c >= limits.events) {
     return Response.json(
-      {
-        error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.`,
-      },
+      { error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.` },
       { status: 402 }
     );
   }
@@ -51,12 +47,12 @@ function checkEventLimit(db: Database, namespace: string, plan: string): Respons
 
 export async function handlePutNode(
   db: Database,
+  nsId: number,
   namespace: string,
   nodeId: string,
   req: Request,
   plan: string
 ): Promise<Response> {
-  // Validate node ID
   if (nodeId.includes("/")) {
     return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
   }
@@ -64,11 +60,11 @@ export async function handlePutNode(
   const body = (await req.json()) as NodeBody;
 
   const existing = db
-    .query("SELECT state FROM nodes WHERE namespace = ? AND id = ?")
-    .get(namespace, nodeId) as { state: string } | null;
+    .query("SELECT state FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId) as { state: string } | null;
 
   if (!existing) {
-    const limitErr = checkNodeLimit(db, namespace, plan);
+    const limitErr = checkNodeLimit(db, nsId, plan);
     if (limitErr) return limitErr;
   }
 
@@ -80,7 +76,7 @@ export async function handlePutNode(
   let ttlSeconds: number | null | undefined;
   if (body.ttl !== undefined) {
     if (body.ttl === null) {
-      ttlSeconds = null; // clear TTL
+      ttlSeconds = null;
     } else {
       try {
         ttlSeconds = parseTtl(body.ttl);
@@ -98,169 +94,110 @@ export async function handlePutNode(
     const setParts: string[] = [];
     const params: unknown[] = [];
 
-    if (body.label !== undefined) {
-      setParts.push("label = ?");
-      params.push(body.label);
-    }
+    if (body.label !== undefined) { setParts.push("label = ?"); params.push(body.label); }
     if (body.state !== undefined) {
-      setParts.push("state = ?");
-      params.push(body.state);
-      if (stateChanged) {
-        setParts.push("state_changed_at = datetime('now')");
-      }
+      setParts.push("state = ?"); params.push(body.state);
+      if (stateChanged) { setParts.push("state_changed_at = datetime('now')"); }
     }
-    if (body.reason !== undefined) {
-      setParts.push("reason = ?");
-      params.push(body.reason);
-    }
-    if (body.solution !== undefined) {
-      setParts.push("solution = ?");
-      params.push(body.solution);
-    }
-    if (body.meta !== undefined) {
-      setParts.push("meta = ?");
-      params.push(JSON.stringify(body.meta));
-    }
-    if (ttlSeconds !== undefined) {
-      setParts.push("ttl = ?");
-      params.push(ttlSeconds);
-    }
+    if (body.reason !== undefined) { setParts.push("reason = ?"); params.push(body.reason); }
+    if (body.solution !== undefined) { setParts.push("solution = ?"); params.push(body.solution); }
+    if (body.meta !== undefined) { setParts.push("meta = ?"); params.push(JSON.stringify(body.meta)); }
+    if (ttlSeconds !== undefined) { setParts.push("ttl = ?"); params.push(ttlSeconds); }
     setParts.push("updated_at = datetime('now')");
 
     if (setParts.length > 0) {
-      params.push(namespace, nodeId);
-      db.query(
-        `UPDATE nodes SET ${setParts.join(", ")} WHERE namespace = ? AND id = ?`
-      ).run(...params);
+      params.push(nsId, nodeId);
+      db.query(`UPDATE nodes SET ${setParts.join(", ")} WHERE ns_id = ? AND id = ?`).run(...params);
     }
   } else {
     db.query(
-      `INSERT INTO nodes (namespace, id, label, state, reason, solution, meta, ttl)
+      `INSERT INTO nodes (ns_id, id, label, state, reason, solution, meta, ttl)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(
-      namespace,
-      nodeId,
-      body.label ?? null,
-      state,
-      body.reason ?? null,
-      body.solution ?? null,
-      body.meta ? JSON.stringify(body.meta) : null,
-      ttlSeconds ?? null
-    );
+    ).run(nsId, nodeId, body.label ?? null, state, body.reason ?? null, body.solution ?? null,
+      body.meta ? JSON.stringify(body.meta) : null, ttlSeconds ?? null);
   }
 
-  // Handle depends_on
   if (body.depends_on !== undefined) {
-    // Remove existing edges from this node
-    db.query("DELETE FROM edges WHERE namespace = ? AND from_node = ?").run(
-      namespace,
-      nodeId
-    );
+    db.query("DELETE FROM edges WHERE ns_id = ? AND from_node = ?").run(nsId, nodeId);
 
     for (const dep of body.depends_on) {
-      // Auto-create dependency nodes that don't exist
-      const depExists = db
-        .query("SELECT id FROM nodes WHERE namespace = ? AND id = ?")
-        .get(namespace, dep);
-
+      const depExists = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, dep);
       if (!depExists) {
-        const limitErr = checkNodeLimit(db, namespace, plan);
+        const limitErr = checkNodeLimit(db, nsId, plan);
         if (limitErr) return limitErr;
-        db.query(
-          "INSERT INTO nodes (namespace, id, state) VALUES (?, ?, 'yellow')"
-        ).run(namespace, dep);
+        db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'yellow')").run(nsId, dep);
       }
 
-      if (wouldCreateCycle(db, namespace, nodeId, dep)) {
+      if (wouldCreateCycle(db, nsId, nodeId, dep)) {
         return Response.json(
           { error: `Cycle detected: ${nodeId} -> ${dep} would create a cycle.` },
           { status: 409 }
         );
       }
 
-      db.query(
-        "INSERT OR IGNORE INTO edges (namespace, from_node, to_node) VALUES (?, ?, ?)"
-      ).run(namespace, nodeId, dep);
+      db.query("INSERT OR IGNORE INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)").run(nsId, nodeId, dep);
     }
   }
 
-  // Dispatch notifications on state change
   if (stateChanged) {
-    const eventLimitErr = checkEventLimit(db, namespace, plan);
+    const eventLimitErr = checkEventLimit(db, nsId, plan);
     if (eventLimitErr) return eventLimitErr;
 
-    const prevEffective = prevState
-      ? computeEffectiveState(db, namespace, nodeId)
-      : null;
-    // State already updated in DB, recompute
-    dispatchNotifications(
-      db,
-      namespace,
-      nodeId,
-      prevState,
-      state,
-      prevEffective,
-      body.reason ?? null,
-      body.solution ?? null
-    );
+    const prevEffective = prevState ? computeEffectiveState(db, nsId, nodeId) : null;
+    dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, body.reason ?? null, body.solution ?? null);
   }
 
   const node = db
-    .query("SELECT * FROM nodes WHERE namespace = ? AND id = ?")
-    .get(namespace, nodeId) as Record<string, unknown>;
+    .query("SELECT * FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId) as Record<string, unknown>;
 
-  return Response.json(formatNode(db, namespace, node), {
-    status: existing ? 200 : 201,
-  });
+  return Response.json(formatNode(db, nsId, namespace, node), { status: existing ? 200 : 201 });
 }
 
 export function handleGetNode(
   db: Database,
+  nsId: number,
   namespace: string,
   nodeId: string
 ): Response {
   const node = db
-    .query("SELECT * FROM nodes WHERE namespace = ? AND id = ?")
-    .get(namespace, nodeId) as Record<string, unknown> | null;
+    .query("SELECT * FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId) as Record<string, unknown> | null;
 
   if (!node) {
     return Response.json({ error: "Node not found." }, { status: 404 });
   }
 
-  return Response.json(formatNode(db, namespace, node));
+  return Response.json(formatNode(db, nsId, namespace, node));
 }
 
 export function handleDeleteNode(
   db: Database,
-  namespace: string,
+  nsId: number,
   nodeId: string
 ): Response {
   const existing = db
-    .query("SELECT id FROM nodes WHERE namespace = ? AND id = ?")
-    .get(namespace, nodeId);
+    .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId);
 
   if (!existing) {
     return Response.json({ error: "Node not found." }, { status: 404 });
   }
 
-  db.query("DELETE FROM nodes WHERE namespace = ? AND id = ?").run(
-    namespace,
-    nodeId
-  );
+  db.query("DELETE FROM nodes WHERE ns_id = ? AND id = ?").run(nsId, nodeId);
   return new Response(null, { status: 204 });
 }
 
 export function handleListNodes(
   db: Database,
+  nsId: number,
   namespace: string
 ): Response {
   const nodes = db
-    .query("SELECT * FROM nodes WHERE namespace = ? ORDER BY id")
-    .all(namespace) as Record<string, unknown>[];
+    .query("SELECT * FROM nodes WHERE ns_id = ? ORDER BY id")
+    .all(nsId) as Record<string, unknown>[];
 
-  return Response.json(
-    nodes.map((n) => formatNode(db, namespace, n))
-  );
+  return Response.json(nodes.map((n) => formatNode(db, nsId, namespace, n)));
 }
 
 function formatTtl(seconds: number): string {
@@ -272,25 +209,26 @@ function formatTtl(seconds: number): string {
 
 function formatNode(
   db: Database,
+  nsId: number,
   namespace: string,
   node: Record<string, unknown>
 ) {
   const nodeId = node.id as string;
 
   const dependsOn = db
-    .query("SELECT to_node FROM edges WHERE namespace = ? AND from_node = ?")
-    .all(namespace, nodeId) as { to_node: string }[];
+    .query("SELECT to_node FROM edges WHERE ns_id = ? AND from_node = ?")
+    .all(nsId, nodeId) as { to_node: string }[];
 
   const dependedOnBy = db
-    .query("SELECT from_node FROM edges WHERE namespace = ? AND to_node = ?")
-    .all(namespace, nodeId) as { from_node: string }[];
+    .query("SELECT from_node FROM edges WHERE ns_id = ? AND to_node = ?")
+    .all(nsId, nodeId) as { from_node: string }[];
 
   const ttl = node.ttl as number | null;
   return {
     id: nodeId,
     namespace,
     state: node.state,
-    effective_state: computeEffectiveState(db, namespace, nodeId),
+    effective_state: computeEffectiveState(db, nsId, nodeId),
     reason: node.reason ?? null,
     solution: node.solution ?? null,
     label: node.label ?? null,

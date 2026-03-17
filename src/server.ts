@@ -36,21 +36,17 @@ function extractBearer(request: Request): string | Response {
 
 const LOCALHOST_ADDRS = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1", "localhost"]);
 
-/** Check if request comes from localhost (supports X-Forwarded-For behind reverse proxy) */
 function isLocalRequest(request: Request, server: unknown): boolean {
-  // Check X-Forwarded-For first (reverse proxy)
   const forwarded = request.headers.get("X-Forwarded-For");
   if (forwarded) {
     const clientIp = forwarded.split(",")[0].trim();
     return LOCALHOST_ADDRS.has(clientIp);
   }
-  // Fall back to direct connection IP
   if (!server || typeof (server as Record<string, unknown>).requestIP !== "function") return false;
   const ip = (server as { requestIP(req: Request): { address: string } | null }).requestIP(request);
   return ip ? LOCALHOST_ADDRS.has(ip.address) : false;
 }
 
-/** Ensure the well-known local token and namespace exist for dep_local auth. */
 function ensureLocalToken(db: Database) {
   db.query(
     "INSERT OR IGNORE INTO tokens (id, token_hash, plan) VALUES (0, 'local', 'enterprise')"
@@ -77,7 +73,6 @@ async function authenticateBasic(
   const colonIdx = decoded.indexOf(":");
   if (colonIdx === -1) return basicAuthChallenge();
 
-  // username=email, password=token
   const token = decoded.slice(colonIdx + 1);
 
   const auth = await verifyToken(db, namespace, token, isLocal);
@@ -103,6 +98,11 @@ function formatNodesAsText(jsonRes: Response): Response {
   );
 }
 
+/** Helper to extract auth from store */
+function auth(store: unknown): AuthResult {
+  return (store as { auth: AuthResult }).auth;
+}
+
 export function createApp(db: Database) {
   ensureLocalToken(db);
 
@@ -111,9 +111,8 @@ export function createApp(db: Database) {
     .derive(({ request }) => {
       return { requestStart: Date.now(), requestUrl: new URL(request.url) };
     })
-    .onAfterResponse(({ request, requestStart, requestUrl, set, server }) => {
+    .onAfterResponse(({ request, requestStart, requestUrl, set }) => {
       const url = requestUrl;
-      // Skip static assets
       if (url.pathname === "/favicon.png" || url.pathname === "/logo.png") return;
       logRequest({
         ts: new Date().toISOString(),
@@ -147,22 +146,14 @@ export function createApp(db: Database) {
 
     // Homepage
     .get("/", () => render("index", { title: "depends.cc — dependency state tracking" }))
-
-    // Pricing
     .get("/pricing", () => render("pricing", { title: "Pricing — depends.cc" }))
-
-    // Signup
     .get("/signup", () => render("signup", { title: "Sign up — depends.cc" }))
-
-    // License & Privacy
     .get("/license", () => render("license", { title: "License — depends.cc" }))
     .get("/privacy", () => render("privacy", { title: "Privacy — depends.cc" }))
     .get("/terms", () => render("terms", { title: "Terms — depends.cc" }))
-
-    // MCP
     .get("/mcp", () => render("mcp", { title: "MCP Server — depends.cc" }))
 
-    // Docs — HTML for humans, JSON for agents
+    // Docs
     .get("/docs", ({ request }) => {
       const accept = request.headers.get("Accept") ?? "";
       if (accept.includes("application/json")) {
@@ -218,42 +209,44 @@ export function createApp(db: Database) {
       return render("docs", { title: "Docs — depends.cc" });
     })
 
-    // Namespace status via Basic Auth (username=email, password=token)
+    // Namespace status via Basic Auth
     .get("/ns/:namespace", async ({ params, request, server }) => {
       const ns = params.namespace;
       const json = ns.endsWith(".json");
       const namespace = json ? ns.slice(0, -5) : ns;
-      const auth = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
-      if (auth instanceof Response) return auth;
-      const res = handleListNodes(db, namespace);
+      const a = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
+      if (a instanceof Response) return a;
+      const res = handleListNodes(db, a.nsId, namespace);
       return json ? res : formatNodesAsText(res);
     })
 
-    // Unauthenticated: signup (creates a token)
+    // Unauthenticated: signup
     .post("/v1/signup", ({ request }) => handleSignup(db, request))
 
-    // Unauthenticated: ack via token link (from email)
+    // Unauthenticated: ack via token link
     .get("/v1/ack/:token", ({ params }) => {
       const rule = db.query(
-        "SELECT namespace, id FROM notification_rules WHERE ack_token = ?"
-      ).get(params.token) as { namespace: string; id: string } | null;
+        "SELECT ns_id, id FROM notification_rules WHERE ack_token = ?"
+      ).get(params.token) as { ns_id: number; id: string } | null;
       if (!rule) {
         return render("ack", { title: "Acknowledge — depends.cc", success: false });
       }
       db.query(
-        "UPDATE notification_rules SET suppressed = 0 WHERE namespace = ? AND id = ?"
-      ).run(rule.namespace, rule.id);
-      return render("ack", { title: "Acknowledge — depends.cc", success: true, rule_id: rule.id, namespace: rule.namespace });
+        "UPDATE notification_rules SET suppressed = 0 WHERE ns_id = ? AND id = ?"
+      ).run(rule.ns_id, rule.id);
+      // Look up namespace name for display
+      const ns = db.query("SELECT id FROM namespaces WHERE ns_id = ?").get(rule.ns_id) as { id: string } | null;
+      return render("ack", { title: "Acknowledge — depends.cc", success: true, rule_id: rule.id, namespace: ns?.id ?? "" });
     })
 
-    // Token-only auth: create namespace (namespace doesn't exist yet)
+    // Token-only auth: create namespace
     .post("/v1/namespaces", async ({ request, server }) => {
       const bearer = extractBearer(request);
       if (bearer instanceof Response) return bearer;
       const local = isLocalRequest(request, server);
-      const auth = await verifyTokenOnly(db, bearer, local);
-      if (!auth) return Response.json({ error: "Invalid token." }, { status: 401 });
-      return handleCreateNamespace(db, request, auth.tokenId, auth.plan);
+      const a = await verifyTokenOnly(db, bearer, local);
+      if (!a) return Response.json({ error: "Invalid token." }, { status: 401 });
+      return handleCreateNamespace(db, request, a.tokenId, a.plan);
     })
 
     // Namespace-scoped auth: all other routes
@@ -265,82 +258,82 @@ export function createApp(db: Database) {
           if (bearer instanceof Response) return bearer;
           const local = isLocalRequest(request, server);
           if (local && bearer === LOCAL_TOKEN) {
-            // Auto-create namespace for local dev
             db.query("INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)").run(ns);
           }
-          const auth = await verifyToken(db, ns, bearer, local);
-          if (!auth) return Response.json({ error: "Invalid token." }, { status: 401 });
-          (store as Record<string, unknown>).auth = auth;
+          const a = await verifyToken(db, ns, bearer, local);
+          if (!a) return Response.json({ error: "Invalid token." }, { status: 401 });
+          (store as Record<string, unknown>).auth = a;
+          (store as Record<string, unknown>).ns = ns;
         },
       },
       (app) =>
         app
           // Namespaces
-          .delete("/v1/namespaces/:namespace", ({ params }) =>
-            handleDeleteNamespace(db, params.namespace)
+          .delete("/v1/namespaces/:namespace", ({ store }) =>
+            handleDeleteNamespace(db, auth(store).nsId)
           )
 
           // Nodes
-          .get("/v1/nodes/:namespace", ({ params }) =>
-            handleListNodes(db, params.namespace)
+          .get("/v1/nodes/:namespace", ({ params, store }) =>
+            handleListNodes(db, auth(store).nsId, params.namespace)
           )
-          .get("/v1/nodes/:namespace/:nodeId", ({ params }) =>
-            handleGetNode(db, params.namespace, params.nodeId)
+          .get("/v1/nodes/:namespace/:nodeId", ({ params, store }) =>
+            handleGetNode(db, auth(store).nsId, params.namespace, params.nodeId)
           )
           .put("/v1/nodes/:namespace/:nodeId", ({ params, request, store }) =>
-            handlePutNode(db, params.namespace, params.nodeId, request, (store as { auth: AuthResult }).auth.plan)
+            handlePutNode(db, auth(store).nsId, params.namespace, params.nodeId, request, auth(store).plan)
           )
-          .delete("/v1/nodes/:namespace/:nodeId", ({ params }) =>
-            handleDeleteNode(db, params.namespace, params.nodeId)
+          .delete("/v1/nodes/:namespace/:nodeId", ({ params, store }) =>
+            handleDeleteNode(db, auth(store).nsId, params.nodeId)
           )
 
           // State shorthand
           .put("/v1/state/:namespace/:nodeId/:state", ({ params, request, store }) =>
-            handlePutState(db, params.namespace, params.nodeId, params.state, request, (store as { auth: AuthResult }).auth.plan)
+            handlePutState(db, auth(store).nsId, params.namespace, params.nodeId, params.state, request, auth(store).plan)
           )
 
           // Events
-          .get("/v1/events/:namespace", ({ params, request }) =>
-            handleGetEvents(db, params.namespace, null, new URL(request.url))
+          .get("/v1/events/:namespace", ({ request, store }) =>
+            handleGetEvents(db, auth(store).nsId, null, new URL(request.url))
           )
-          .get("/v1/events/:namespace/:nodeId", ({ params, request }) =>
-            handleGetEvents(db, params.namespace, params.nodeId, new URL(request.url))
+          .get("/v1/events/:namespace/:nodeId", ({ params, request, store }) =>
+            handleGetEvents(db, auth(store).nsId, params.nodeId, new URL(request.url))
           )
 
           // Graph
-          .get("/v1/graph/:namespace", ({ params, request }) =>
-            handleGetGraph(db, params.namespace, new URL(request.url))
+          .get("/v1/graph/:namespace", ({ params, request, store }) =>
+            handleGetGraph(db, auth(store).nsId, params.namespace, new URL(request.url))
           )
           .put("/v1/graph/:namespace", ({ params, request, store }) =>
-            handlePutGraph(db, params.namespace, request, (store as { auth: AuthResult }).auth.tokenId)
+            handlePutGraph(db, auth(store).nsId, params.namespace, request, auth(store).tokenId)
           )
-          .get("/v1/graph/:namespace/:nodeId", ({ params }) =>
-            handleGetSubgraph(db, params.namespace, params.nodeId)
+          .get("/v1/graph/:namespace/:nodeId", ({ params, store }) =>
+            handleGetSubgraph(db, auth(store).nsId, params.namespace, params.nodeId)
           )
-          .get("/v1/graph/:namespace/:nodeId/upstream", ({ params }) =>
-            handleGetUpstream(db, params.namespace, params.nodeId)
+          .get("/v1/graph/:namespace/:nodeId/upstream", ({ params, store }) =>
+            handleGetUpstream(db, auth(store).nsId, params.namespace, params.nodeId)
           )
-          .get("/v1/graph/:namespace/:nodeId/downstream", ({ params }) =>
-            handleGetDownstream(db, params.namespace, params.nodeId)
+          .get("/v1/graph/:namespace/:nodeId/downstream", ({ params, store }) =>
+            handleGetDownstream(db, auth(store).nsId, params.namespace, params.nodeId)
           )
 
           // Notifications
-          .get("/v1/notifications/:namespace", ({ params }) =>
-            handleListNotifications(db, params.namespace)
+          .get("/v1/notifications/:namespace", ({ params, store }) =>
+            handleListNotifications(db, auth(store).nsId, params.namespace)
           )
-          .put("/v1/notifications/:namespace", ({ params, request, store }) =>
-            handlePutNotification(db, params.namespace, request, (store as { auth: AuthResult }).auth.tokenId)
+          .put("/v1/notifications/:namespace", ({ request, store }) =>
+            handlePutNotification(db, auth(store).nsId, request, auth(store).tokenId)
           )
-          .delete("/v1/notifications/:namespace/:ruleId", ({ params }) =>
-            handleDeleteNotification(db, params.namespace, params.ruleId)
+          .delete("/v1/notifications/:namespace/:ruleId", ({ params, store }) =>
+            handleDeleteNotification(db, auth(store).nsId, params.ruleId)
           )
-          .post("/v1/notifications/:namespace/:ruleId/ack", ({ params }) =>
-            handleAckNotification(db, params.namespace, params.ruleId)
+          .post("/v1/notifications/:namespace/:ruleId/ack", ({ params, store }) =>
+            handleAckNotification(db, auth(store).nsId, params.ruleId)
           )
 
           // Usage
           .get("/v1/usage/:namespace", ({ params, store }) =>
-            handleGetUsage(db, params.namespace, (store as { auth: AuthResult }).auth.tokenId, (store as { auth: AuthResult }).auth.plan)
+            handleGetUsage(db, auth(store).nsId, params.namespace, auth(store).tokenId, auth(store).plan)
           )
     );
 
@@ -368,6 +361,5 @@ if (import.meta.main) {
   const server = createServer(db, PORT);
   console.log(`depends.cc listening on http://localhost:${server.port}`);
 
-  // Purge expired events every hour
   setInterval(() => purgeExpiredEvents(db), 60 * 60 * 1000);
 }

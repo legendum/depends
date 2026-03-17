@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 
 export function handleGetEvents(
   db: Database,
-  namespace: string,
+  nsId: number,
   nodeId: string | null,
   url: URL
 ): Response {
@@ -11,13 +11,13 @@ export function handleGetEvents(
   const limit = Math.min(Math.max(parseInt(limitParam ?? "100", 10) || 100, 1), 1000);
 
   let query: string;
-  const params: unknown[] = [namespace];
+  const params: unknown[] = [nsId];
 
   if (nodeId) {
-    query = `SELECT * FROM events WHERE namespace = ? AND node_id = ?`;
+    query = `SELECT * FROM events WHERE ns_id = ? AND node_id = ?`;
     params.push(nodeId);
   } else {
-    query = `SELECT * FROM events WHERE namespace = ?`;
+    query = `SELECT * FROM events WHERE ns_id = ?`;
   }
 
   if (since) {

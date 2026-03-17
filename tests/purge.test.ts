@@ -4,34 +4,37 @@ import { purgeExpiredEvents } from "../src/purge";
 import type { Database } from "bun:sqlite";
 
 let db: Database;
+let nsId: number;
 
 function setup() {
   db = createTestDb();
-  const { lastInsertRowid } = db.query("INSERT INTO tokens (token_hash, plan) VALUES ('h', 'free')").run();
-  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(lastInsertRowid);
-  db.query("INSERT INTO nodes (namespace, id, state) VALUES ('ns', 'a', 'green')").run();
+  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES ('h', 'free')").run();
+  const { lastInsertRowid } = db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(tokenId);
+  nsId = Number(lastInsertRowid);
+  db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'a', 'green')").run(nsId);
 }
 
 function addEvent(daysAgo: number) {
   const date = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000).toISOString();
   db.query(
-    "INSERT INTO events (namespace, node_id, new_state, new_effective_state, created_at) VALUES ('ns', 'a', 'red', 'red', ?)"
-  ).run(date);
+    "INSERT INTO events (ns_id, node_id, new_state, new_effective_state, created_at) VALUES (?, 'a', 'red', 'red', ?)"
+  ).run(nsId, date);
 }
 
 function eventCount(): number {
-  return (db.query("SELECT COUNT(*) as c FROM events").get() as { c: number }).c;
+  return (db.query("SELECT COUNT(*) as c FROM events WHERE ns_id = ?").get(nsId) as { c: number }).c;
 }
 
 describe("purge expired events", () => {
-  beforeEach(() => setup());
+  beforeEach(setup);
 
   test("purges events older than 7 days on free plan", () => {
-    addEvent(8); // 8 days ago — should be purged
-    addEvent(3); // 3 days ago — should be kept
+    addEvent(1);
+    addEvent(8);
+    addEvent(10);
 
     const purged = purgeExpiredEvents(db);
-    expect(purged).toBe(1);
+    expect(purged).toBe(2);
     expect(eventCount()).toBe(1);
   });
 
@@ -48,8 +51,8 @@ describe("purge expired events", () => {
   test("pro plan retains 30 days", () => {
     db.query("UPDATE tokens SET plan = 'pro' WHERE token_hash = 'h'").run();
 
-    addEvent(25); // 25 days ago — kept on pro
-    addEvent(31); // 31 days ago — purged on pro
+    addEvent(25);
+    addEvent(31);
 
     const purged = purgeExpiredEvents(db);
     expect(purged).toBe(1);

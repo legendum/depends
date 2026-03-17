@@ -15,37 +15,39 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 
 CREATE TABLE IF NOT EXISTS namespaces (
-  id          TEXT PRIMARY KEY,
+  ns_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  id          TEXT NOT NULL,
   token_id    INTEGER NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(token_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS nodes (
-  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+  ns_id       INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
   id          TEXT NOT NULL,
   label       TEXT,
   state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
   meta        TEXT,
-  reason      TEXT,  -- human/AI-readable reason for current state
-  solution    TEXT,  -- optional recommended fix (e.g. from X-Depends-Solution)
-  ttl         INTEGER,  -- seconds; null = no TTL
-  last_state_write TEXT,  -- timestamp of last PUT /state, for TTL expiry
+  reason      TEXT,
+  solution    TEXT,
+  ttl         INTEGER,
+  last_state_write TEXT,
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (namespace, id)
+  PRIMARY KEY (ns_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS edges (
-  namespace   TEXT NOT NULL,
+  ns_id       INTEGER NOT NULL,
   from_node   TEXT NOT NULL,
   to_node     TEXT NOT NULL,
-  PRIMARY KEY (namespace, from_node, to_node),
-  FOREIGN KEY (namespace, from_node) REFERENCES nodes(namespace, id) ON DELETE CASCADE,
-  FOREIGN KEY (namespace, to_node) REFERENCES nodes(namespace, id) ON DELETE CASCADE
+  PRIMARY KEY (ns_id, from_node, to_node),
+  FOREIGN KEY (ns_id, from_node) REFERENCES nodes(ns_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (ns_id, to_node) REFERENCES nodes(ns_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS notification_rules (
-  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+  ns_id       INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
   id          TEXT NOT NULL,
   watch       TEXT NOT NULL DEFAULT '*',
   on_state    TEXT NOT NULL DEFAULT 'red',
@@ -57,12 +59,12 @@ CREATE TABLE IF NOT EXISTS notification_rules (
   suppressed  INTEGER NOT NULL DEFAULT 0,
   last_fired_at TEXT,
   CHECK (url IS NOT NULL OR email IS NOT NULL),
-  PRIMARY KEY (namespace, id)
+  PRIMARY KEY (ns_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS events (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
+  ns_id       INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
   node_id     TEXT NOT NULL,
   previous_state TEXT,
   new_state   TEXT NOT NULL,
@@ -73,11 +75,11 @@ CREATE TABLE IF NOT EXISTS events (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_events_namespace ON events(namespace, created_at);
-CREATE INDEX IF NOT EXISTS idx_events_node ON events(namespace, node_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(namespace, node_id, id);
+CREATE INDEX IF NOT EXISTS idx_events_ns ON events(ns_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_node ON events(ns_id, node_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(ns_id, node_id, id);
 
-CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(namespace, to_node);
+CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(ns_id, to_node);
 `;
 
 export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number; eventRetentionDays: number }> = {

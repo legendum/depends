@@ -12,7 +12,7 @@ interface NotificationBody {
 
 export async function handlePutNotification(
   db: Database,
-  namespace: string,
+  nsId: number,
   req: Request,
   tokenId: number
 ): Promise<Response> {
@@ -23,117 +23,84 @@ export async function handlePutNotification(
   }
 
   if (!body.url && !body.email) {
-    return Response.json(
-      { error: "Rule must have either 'url' or 'email'." },
-      { status: 400 }
-    );
+    return Response.json({ error: "Rule must have either 'url' or 'email'." }, { status: 400 });
   }
 
-  // email: true resolves to the token owner's email
   let emailAddr: string | null = null;
   if (body.email) {
     const owner = db.query("SELECT email FROM tokens WHERE id = ?").get(tokenId) as { email: string | null } | null;
     if (!owner?.email) {
-      return Response.json(
-        { error: "No email address on file for this token." },
-        { status: 400 }
-      );
+      return Response.json({ error: "No email address on file for this token." }, { status: 400 });
     }
     emailAddr = owner.email;
   }
 
-  const onState = Array.isArray(body.on)
-    ? body.on.join(",")
-    : body.on ?? "red";
+  const onState = Array.isArray(body.on) ? body.on.join(",") : body.on ?? "red";
 
-  // Generate a unique ack token for ack-enabled rules
   const ackToken = body.ack
     ? Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url")
     : null;
 
   db.query(
     `INSERT OR REPLACE INTO notification_rules
-     (namespace, id, watch, on_state, url, email, secret, ack, ack_token, suppressed)
+     (ns_id, id, watch, on_state, url, email, secret, ack, ack_token, suppressed)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
-  ).run(
-    namespace,
-    body.id,
-    body.watch ?? "*",
-    onState,
-    body.url ?? null,
-    emailAddr,
-    body.secret ?? null,
-    body.ack ? 1 : 0,
-    ackToken
-  );
+  ).run(nsId, body.id, body.watch ?? "*", onState, body.url ?? null, emailAddr, body.secret ?? null, body.ack ? 1 : 0, ackToken);
 
   return Response.json({ ok: true }, { status: 200 });
 }
 
 export function handleListNotifications(
   db: Database,
+  nsId: number,
   namespace: string
 ): Response {
   const rules = db
-    .query(
-      "SELECT * FROM notification_rules WHERE namespace = ? ORDER BY id"
-    )
-    .all(namespace) as Record<string, unknown>[];
+    .query("SELECT * FROM notification_rules WHERE ns_id = ? ORDER BY id")
+    .all(nsId) as Record<string, unknown>[];
 
-  return Response.json(
-    rules.map((r) => formatRule(r))
-  );
+  return Response.json(rules.map((r) => formatRule(r, namespace)));
 }
 
 export function handleDeleteNotification(
   db: Database,
-  namespace: string,
+  nsId: number,
   ruleId: string
 ): Response {
   const existing = db
-    .query(
-      "SELECT id FROM notification_rules WHERE namespace = ? AND id = ?"
-    )
-    .get(namespace, ruleId);
+    .query("SELECT id FROM notification_rules WHERE ns_id = ? AND id = ?")
+    .get(nsId, ruleId);
 
   if (!existing) {
     return Response.json({ error: "Rule not found." }, { status: 404 });
   }
 
-  db.query(
-    "DELETE FROM notification_rules WHERE namespace = ? AND id = ?"
-  ).run(namespace, ruleId);
-
+  db.query("DELETE FROM notification_rules WHERE ns_id = ? AND id = ?").run(nsId, ruleId);
   return new Response(null, { status: 204 });
 }
 
 export function handleAckNotification(
   db: Database,
-  namespace: string,
+  nsId: number,
   ruleId: string
 ): Response {
   const existing = db
-    .query(
-      "SELECT id FROM notification_rules WHERE namespace = ? AND id = ?"
-    )
-    .get(namespace, ruleId);
+    .query("SELECT id FROM notification_rules WHERE ns_id = ? AND id = ?")
+    .get(nsId, ruleId);
 
   if (!existing) {
     return Response.json({ error: "Rule not found." }, { status: 404 });
   }
 
-  db.query(
-    "UPDATE notification_rules SET suppressed = 0 WHERE namespace = ? AND id = ?"
-  ).run(namespace, ruleId);
-
+  db.query("UPDATE notification_rules SET suppressed = 0 WHERE ns_id = ? AND id = ?").run(nsId, ruleId);
   return Response.json({ ok: true });
 }
 
-function formatRule(r: Record<string, unknown>) {
+function formatRule(r: Record<string, unknown>, namespace: string) {
   const onParts = (r.on_state as string).split(",");
   return {
     id: r.id,
-    namespace: r.namespace,
+    namespace,
     watch: r.watch,
     on: onParts.length === 1 ? onParts[0] : onParts,
     url: r.url ?? undefined,
