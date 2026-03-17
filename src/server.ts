@@ -220,16 +220,16 @@ export function createApp(db: Database) {
 
     // Namespace status via Basic Auth
     .get("/ns/*", async ({ params, request, server }) => {
-      const wildcard = params["*"];
-      const parts = wildcard.split("/");
+      const parts = params["*"].split("/");
       if (parts.length < 1 || !parts[0]) return new Response("Not Found", { status: 404 });
+      const isLocal = isLocalRequest(request, server);
 
       // Single node: /ns/:namespace/:node[.json]
       if (parts.length >= 2 && parts[1]) {
         const nd = parts[1];
         const json = nd.endsWith(".json");
         const nodeId = json ? nd.slice(0, -5) : nd;
-        const a = await authenticateBasic(db, parts[0], request, isLocalRequest(request, server));
+        const a = await authenticateBasic(db, parts[0], request, isLocal);
         if (a instanceof Response) return a;
         const res = handleGetNode(db, a.nsId, parts[0], nodeId);
         if (json) return res;
@@ -240,7 +240,7 @@ export function createApp(db: Database) {
       const ns = parts[0];
       const format = ns.endsWith(".json") ? "json" : ns.endsWith(".yaml") ? "yaml" : "text";
       const namespace = format !== "text" ? ns.slice(0, ns.lastIndexOf(".")) : ns;
-      const a = await authenticateBasic(db, namespace, request, isLocalRequest(request, server));
+      const a = await authenticateBasic(db, namespace, request, isLocal);
       if (a instanceof Response) return a;
       if (format === "json") return handleListNodes(db, a.nsId, namespace);
       if (format === "yaml") {
