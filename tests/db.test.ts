@@ -2,8 +2,8 @@ import { describe, test, expect } from "bun:test";
 import { createTestDb } from "../src/db";
 
 function insertNs(db: ReturnType<typeof createTestDb>, nsId: string = "test") {
-  db.query("INSERT OR IGNORE INTO tokens (id, token_hash) VALUES ('tok', 'hash')").run();
-  db.query(`INSERT INTO namespaces (id, token_id) VALUES (?, 'tok')`).run(nsId);
+  const { lastInsertRowid } = db.query("INSERT INTO tokens (token_hash) VALUES ('hash')").run();
+  db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(nsId, lastInsertRowid);
 }
 
 describe("database", () => {

@@ -7,8 +7,8 @@ let db: Database;
 
 function setup() {
   db = createTestDb();
-  db.query("INSERT INTO tokens (id, token_hash, plan) VALUES ('tok', 'h', 'free')").run();
-  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', 'tok')").run();
+  const { lastInsertRowid } = db.query("INSERT INTO tokens (token_hash, plan) VALUES ('h', 'free')").run();
+  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(lastInsertRowid);
   db.query("INSERT INTO nodes (namespace, id, state) VALUES ('ns', 'a', 'green')").run();
 }
 
@@ -46,7 +46,7 @@ describe("purge expired events", () => {
   });
 
   test("pro plan retains 30 days", () => {
-    db.query("UPDATE tokens SET plan = 'pro' WHERE id = 'tok'").run();
+    db.query("UPDATE tokens SET plan = 'pro' WHERE token_hash = 'h'").run();
 
     addEvent(25); // 25 days ago — kept on pro
     addEvent(31); // 31 days ago — purged on pro

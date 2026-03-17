@@ -1,23 +1,18 @@
 import { Database } from "bun:sqlite";
 
 export interface AuthResult {
-  tokenId: string;
+  tokenId: number;
   plan: string;
 }
 
 /** Well-known token for local development — no signup needed, no limits. */
 export const LOCAL_TOKEN = "dep_local";
-const LOCAL_AUTH: AuthResult = { tokenId: "local", plan: "enterprise" };
+const LOCAL_AUTH: AuthResult = { tokenId: 0, plan: "enterprise" };
 
 export function generateToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
   const encoded = Buffer.from(bytes).toString("base64url");
   return `dep_${encoded}`;
-}
-
-export function generateTokenId(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Buffer.from(bytes).toString("hex");
 }
 
 export async function hashToken(token: string): Promise<string> {
@@ -45,7 +40,7 @@ export async function verifyToken(
        JOIN namespaces n ON n.token_id = t.id
        WHERE t.token_hash = ? AND n.id = ?`
     )
-    .get(hash, namespace) as { id: string; plan: string } | null;
+    .get(hash, namespace) as { id: number; plan: string } | null;
   if (!row) return null;
   return { tokenId: row.id, plan: row.plan };
 }
@@ -64,7 +59,7 @@ export async function verifyTokenOnly(
   const hash = await hashToken(token);
   const row = db
     .query("SELECT id, plan FROM tokens WHERE token_hash = ?")
-    .get(hash) as { id: string; plan: string } | null;
+    .get(hash) as { id: number; plan: string } | null;
   if (!row) return null;
   return { tokenId: row.id, plan: row.plan };
 }

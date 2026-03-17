@@ -304,8 +304,7 @@ async function cmdStatus(config: Config, args: string[]) {
     // Single node detail
     const res = await api(config, `/nodes/${ns}/${nodeId}`);
     if (!res.ok) {
-      const data = await res.json();
-      console.error(`Error: ${data.error}`);
+      console.error(`Error: ${await errorMsg(res)}`);
       process.exit(1);
     }
     const node: StatusNode = await res.json();
@@ -739,7 +738,8 @@ async function cmdEvents(config: Config, args: string[]) {
     process.exit(1);
   }
 
-  const events: Event[] = await res.json();
+  const data = await res.json();
+  const events: Event[] = Array.isArray(data) ? data : data.events;
 
   if (jsonOutput) {
     console.log(JSON.stringify(events, null, 2));

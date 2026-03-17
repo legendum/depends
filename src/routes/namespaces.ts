@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { generateToken, generateTokenId, hashToken } from "../auth";
+import { generateToken, hashToken } from "../auth";
 import { PLAN_LIMITS } from "../db";
 import { sendSignupEmail } from "../notify/email";
 
@@ -35,11 +35,9 @@ export async function handleSignup(
   }
 
   const token = generateToken();
-  const tokenId = generateTokenId();
   const hash = await hashToken(token);
 
-  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(
-    tokenId,
+  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(
     hash,
     email
   );
@@ -60,7 +58,7 @@ export async function handleSignup(
 export async function handleCreateNamespace(
   db: Database,
   req: Request,
-  tokenId: string,
+  tokenId: number,
   plan: string
 ): Promise<Response> {
   const body = (await req.json()) as { id?: string };

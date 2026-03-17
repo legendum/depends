@@ -80,7 +80,7 @@ export async function handlePutGraph(
   db: Database,
   namespace: string,
   req: Request,
-  tokenId: string
+  tokenId: number
 ): Promise<Response> {
   const url = new URL(req.url);
   const prune = url.searchParams.get("prune") === "true";

@@ -35,7 +35,7 @@ export function importYaml(
   db: Database,
   spec: YamlSpec,
   prune: boolean = false,
-  tokenId?: string
+  tokenId?: number
 ): void {
   const ns = spec.namespace;
 

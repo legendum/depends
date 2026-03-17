@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
-import { generateToken, generateTokenId, hashToken } from "../src/auth";
+import { generateToken, hashToken } from "../src/auth";
 import type { Server } from "bun";
 
 let server: ReturnType<typeof createServer>;
@@ -17,9 +17,8 @@ beforeAll(async () => {
 
   // Seed a test token directly
   token = generateToken();
-  const tokenId = generateTokenId();
   const hash = await hashToken(token);
-  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(tokenId, hash, "test@example.com");
+  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "test@example.com");
 });
 
 afterAll(() => {
@@ -608,9 +607,8 @@ describe("plan limits", () => {
   test("setup: create token and namespace", async () => {
     // Create a token directly
     limitToken = generateToken();
-    const limitTokenId = generateTokenId();
     const limitHash = await hashToken(limitToken);
-    db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(limitTokenId, limitHash, "limit@example.com");
+    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(limitHash, "limit@example.com");
 
     // Create namespace
     const res = await fetch(`${baseUrl}/namespaces`, {
@@ -676,9 +674,8 @@ describe("namespace deletion", () => {
   test("delete cascades everything", async () => {
     // Create a token directly
     const delToken = generateToken();
-    const delTokenId = generateTokenId();
     const delHash = await hashToken(delToken);
-    db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(delTokenId, delHash, "delete@example.com");
+    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(delHash, "delete@example.com");
 
     const createRes = await fetch(`${baseUrl}/namespaces`, {
       method: "POST",

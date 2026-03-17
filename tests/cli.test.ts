@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
-import { generateToken, generateTokenId, hashToken } from "../src/auth";
+import { generateToken, hashToken } from "../src/auth";
 import { existsSync, unlinkSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
@@ -20,9 +20,8 @@ beforeAll(async () => {
 
   // Seed a test token directly
   token = generateToken();
-  const tokenId = generateTokenId();
   const hash = await hashToken(token);
-  db.query("INSERT INTO tokens (id, token_hash, email) VALUES (?, ?, ?)").run(tokenId, hash, "cli-test@example.com");
+  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "cli-test@example.com");
 
   // Create namespace
   await fetch(`${baseUrl}/namespaces`, {

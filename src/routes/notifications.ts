@@ -14,7 +14,7 @@ export async function handlePutNotification(
   db: Database,
   namespace: string,
   req: Request,
-  tokenId: string
+  tokenId: number
 ): Promise<Response> {
   const body = (await req.json()) as NotificationBody;
 

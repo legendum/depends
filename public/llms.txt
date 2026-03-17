@@ -66,6 +66,11 @@ If no token is configured, the CLI defaults to local mode:
 - No limits (enterprise plan)
 - Start server: depends serve
 
+## Status page
+
+GET /ns/:ns         Plain text status (HTTP Basic Auth: any username, token as password)
+GET /ns/:ns.json    JSON status (same auth, same data as GET /v1/nodes/:ns)
+
 ## Machine-readable docs
 
 GET /docs with Accept: application/json returns structured API documentation.

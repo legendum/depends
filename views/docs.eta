@@ -253,3 +253,21 @@ notifications:
   <p class="endpoint"><span class="method get">GET</span> /v1/usage/:namespace</p>
   <p>Get current usage stats and plan limits for a namespace.</p>
 </div>
+
+<h2>Status Page</h2>
+
+<div class="config-block">
+  <h3>Browser-friendly status view</h3>
+  <p class="endpoint"><span class="method get">GET</span> /ns/:namespace</p>
+  <p>View node status in plain text. Uses HTTP Basic Auth &mdash; enter any username (e.g. your email) and your <code>dep_...</code> token as the password. One login covers all your namespaces.</p>
+
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace.json</p>
+  <p>Same data as JSON. Identical output to <code>GET /v1/nodes/:namespace</code>.</p>
+
+<pre><code># Plain text
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject
+
+# JSON
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.json</code></pre>
+  <p>In a browser, visiting <code>/ns/myproject</code> will prompt for credentials.</p>
+</div>

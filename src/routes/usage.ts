@@ -3,7 +3,7 @@ import { Database } from "bun:sqlite";
 export function handleGetUsage(
   db: Database,
   namespace: string,
-  tokenId: string,
+  tokenId: number,
   plan: string
 ): Response {
   const now = new Date();

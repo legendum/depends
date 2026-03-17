@@ -6,7 +6,7 @@ PRAGMA busy_timeout=5000;
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS tokens (
-  id          TEXT PRIMARY KEY,
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
   token_hash  TEXT NOT NULL UNIQUE,
   email       TEXT,
   plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tokens (
 
 CREATE TABLE IF NOT EXISTS namespaces (
   id          TEXT PRIMARY KEY,
-  token_id    TEXT NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+  token_id    INTEGER NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

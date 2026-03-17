@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { Elysia } from "elysia";
 import { join } from "path";
+import { appendFileSync, mkdirSync } from "fs";
 import { createDb } from "./db";
 import { verifyToken, verifyTokenOnly, LOCAL_TOKEN, type AuthResult } from "./auth";
 import { render } from "./render";
@@ -16,6 +17,13 @@ import { rateLimit } from "./ratelimit";
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 
 const PUBLIC_DIR = join(import.meta.dir, "..", "public");
+const LOG_DIR = join(import.meta.dir, "..", "log");
+mkdirSync(LOG_DIR, { recursive: true });
+
+function logRequest(entry: Record<string, unknown>) {
+  const date = new Date().toISOString().slice(0, 10);
+  appendFileSync(join(LOG_DIR, `${date}.log`), JSON.stringify(entry) + "\n");
+}
 
 /** Extract bearer token from request, returning 401 response on failure */
 function extractBearer(request: Request): string | Response {
@@ -45,14 +53,16 @@ function isLocalRequest(request: Request, server: unknown): boolean {
 /** Ensure the well-known local token and namespace exist for dep_local auth. */
 function ensureLocalToken(db: Database) {
   db.query(
-    "INSERT OR IGNORE INTO tokens (id, token_hash, plan) VALUES ('local', 'local', 'enterprise')"
+    "INSERT OR IGNORE INTO tokens (id, token_hash, plan) VALUES (0, 'local', 'enterprise')"
   ).run();
 }
 
-const BASIC_AUTH_CHALLENGE = new Response("Unauthorized", {
-  status: 401,
-  headers: { "WWW-Authenticate": 'Basic realm="depends.cc"' },
-});
+function basicAuthChallenge(): Response {
+  return new Response("Unauthorized", {
+    status: 401,
+    headers: { "WWW-Authenticate": 'Basic realm="depends.cc"' },
+  });
+}
 
 async function authenticateBasic(
   db: Database,
@@ -61,24 +71,23 @@ async function authenticateBasic(
   isLocal: boolean
 ): Promise<AuthResult | Response> {
   const authHeader = request.headers.get("Authorization");
-  if (!authHeader?.startsWith("Basic ")) return BASIC_AUTH_CHALLENGE;
+  if (!authHeader?.startsWith("Basic ")) return basicAuthChallenge();
 
   const decoded = atob(authHeader.slice(6));
   const colonIdx = decoded.indexOf(":");
-  if (colonIdx === -1) return BASIC_AUTH_CHALLENGE;
+  if (colonIdx === -1) return basicAuthChallenge();
 
   // username=email, password=token
   const token = decoded.slice(colonIdx + 1);
 
   const auth = await verifyToken(db, namespace, token, isLocal);
-  if (!auth) return BASIC_AUTH_CHALLENGE;
+  if (!auth) return basicAuthChallenge();
   return auth;
 }
 
 function formatNodesAsText(jsonRes: Response): Response {
-  const clone = jsonRes.clone();
   return new Response(
-    clone.json().then((nodes: Array<{ id: string; state: string; effective_state: string; label: string | null; reason: string | null }>) => {
+    jsonRes.json().then((nodes: Array<{ id: string; state: string; effective_state: string; label: string | null; reason: string | null }>) => {
       if (nodes.length === 0) return "No nodes in this namespace.\n";
       const maxId = Math.max(...nodes.map((n) => n.id.length));
       const lines = nodes.map((n) => {
@@ -98,6 +107,24 @@ export function createApp(db: Database) {
   ensureLocalToken(db);
 
   const app = new Elysia()
+    // Request logging
+    .derive(({ request }) => {
+      return { requestStart: Date.now(), requestUrl: new URL(request.url) };
+    })
+    .onAfterResponse(({ request, requestStart, requestUrl, set, server }) => {
+      const url = requestUrl;
+      // Skip static assets
+      if (url.pathname === "/favicon.png" || url.pathname === "/logo.png") return;
+      logRequest({
+        ts: new Date().toISOString(),
+        method: request.method,
+        path: url.pathname,
+        query: url.search || undefined,
+        status: set.status ?? 200,
+        ms: Date.now() - requestStart,
+      });
+    })
+
     // Rate limiting (skip for local requests)
     .onBeforeHandle(({ request, server }) => {
       if (isLocalRequest(request, server)) return;
@@ -239,7 +266,7 @@ export function createApp(db: Database) {
           const local = isLocalRequest(request, server);
           if (local && bearer === LOCAL_TOKEN) {
             // Auto-create namespace for local dev
-            db.query("INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 'local')").run(ns);
+            db.query("INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)").run(ns);
           }
           const auth = await verifyToken(db, ns, bearer, local);
           if (!auth) return Response.json({ error: "Invalid token." }, { status: 401 });

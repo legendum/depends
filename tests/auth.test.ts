@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { generateToken, generateTokenId, hashToken, verifyToken, verifyTokenOnly } from "../src/auth";
+import { generateToken, hashToken, verifyToken, verifyTokenOnly } from "../src/auth";
 import { createTestDb } from "../src/db";
 
 describe("auth", () => {
@@ -13,13 +13,6 @@ describe("auth", () => {
     const t1 = generateToken();
     const t2 = generateToken();
     expect(t1).not.toBe(t2);
-  });
-
-  test("generates unique token IDs", () => {
-    const id1 = generateTokenId();
-    const id2 = generateTokenId();
-    expect(id1).not.toBe(id2);
-    expect(id1.length).toBe(32);
   });
 
   test("hashing is deterministic", async () => {
@@ -38,23 +31,21 @@ describe("auth", () => {
   test("verifyToken returns AuthResult for correct token + namespace", async () => {
     const db = createTestDb();
     const token = "dep_test123";
-    const tokenId = "tok_1";
     const hash = await hashToken(token);
-    db.query("INSERT INTO tokens (id, token_hash, plan) VALUES (?, ?, 'free')").run(tokenId, hash);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES (?, 'free')").run(hash);
     db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
 
     const result = await verifyToken(db, "myns", token);
     expect(result).not.toBeNull();
-    expect(result!.tokenId).toBe(tokenId);
+    expect(result!.tokenId).toBe(Number(tokenId));
     expect(result!.plan).toBe("free");
     db.close();
   });
 
   test("verifyToken returns null for wrong token", async () => {
     const db = createTestDb();
-    const tokenId = "tok_2";
     const hash = await hashToken("dep_correct");
-    db.query("INSERT INTO tokens (id, token_hash) VALUES (?, ?)").run(tokenId, hash);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
     db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
 
     expect(await verifyToken(db, "myns", "dep_wrong")).toBeNull();
@@ -63,12 +54,11 @@ describe("auth", () => {
 
   test("verifyToken returns null for correct token but wrong namespace", async () => {
     const db = createTestDb();
-    const tokenId = "tok_3";
-    const hash = await hashToken("dep_correct");
-    db.query("INSERT INTO tokens (id, token_hash) VALUES (?, ?)").run(tokenId, hash);
+    const hash = await hashToken("dep_correct2");
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
     db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
 
-    expect(await verifyToken(db, "other-ns", "dep_correct")).toBeNull();
+    expect(await verifyToken(db, "other-ns", "dep_correct2")).toBeNull();
     db.close();
   });
 
@@ -81,13 +71,12 @@ describe("auth", () => {
   test("verifyTokenOnly returns AuthResult without namespace check", async () => {
     const db = createTestDb();
     const token = "dep_only";
-    const tokenId = "tok_4";
     const hash = await hashToken(token);
-    db.query("INSERT INTO tokens (id, token_hash, plan) VALUES (?, ?, 'pro')").run(tokenId, hash);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES (?, 'pro')").run(hash);
 
     const result = await verifyTokenOnly(db, token);
     expect(result).not.toBeNull();
-    expect(result!.tokenId).toBe(tokenId);
+    expect(result!.tokenId).toBe(Number(tokenId));
     expect(result!.plan).toBe("pro");
     db.close();
   });

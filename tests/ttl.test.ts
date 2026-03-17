@@ -4,8 +4,8 @@ import { computeEffectiveState } from "../src/graph/effective";
 
 function setup() {
   const db = createTestDb();
-  db.query("INSERT INTO tokens (id, token_hash) VALUES ('tok', 'h')").run();
-  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', 'tok')").run();
+  const { lastInsertRowid } = db.query("INSERT INTO tokens (token_hash) VALUES ('h')").run();
+  db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(lastInsertRowid);
   return db;
 }
 
