@@ -238,9 +238,9 @@ export function createApp(db: Database) {
         return formatNodeAsText(res);
       }
 
-      // All nodes: /ns/:namespace[.json|.yaml]
+      // All nodes: /ns/:namespace[.json|.yaml|.svg]
       const ns = parts[0];
-      const format = ns.endsWith(".json") ? "json" : ns.endsWith(".yaml") ? "yaml" : "text";
+      const format = ns.endsWith(".json") ? "json" : ns.endsWith(".yaml") ? "yaml" : ns.endsWith(".svg") ? "svg" : "text";
       const namespace = format !== "text" ? ns.slice(0, ns.lastIndexOf(".")) : ns;
       const a = await authenticateBasic(db, namespace, request, isLocal);
       if (a instanceof Response) return a;
@@ -248,6 +248,11 @@ export function createApp(db: Database) {
       if (format === "yaml") {
         const { exportYaml } = await import("./graph/yaml");
         return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      }
+      if (format === "svg") {
+        const { renderSvg } = await import("./graph/svg");
+        const graph = await handleGetGraph(db, a.nsId, namespace, new URL(request.url)).json();
+        return new Response(renderSvg(graph), { headers: { "Content-Type": "image/svg+xml" } });
       }
       return formatNodesAsText(handleListNodes(db, a.nsId, namespace));
     })

@@ -828,6 +828,18 @@ describe("status page /ns/:namespace", () => {
     expect(text).toContain("api");
   });
 
+  test("svg response returns valid SVG", async () => {
+    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.svg`, {
+      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
+    const text = await res.text();
+    expect(text).toContain("<svg");
+    expect(text).toContain("db");
+    expect(text).toContain("api");
+  });
+
   test("single node text response", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}/db`, {
       headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
