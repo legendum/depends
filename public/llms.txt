@@ -70,6 +70,7 @@ If no token is configured, the CLI defaults to local mode:
 
 GET /ns/:ns         Plain text status (HTTP Basic Auth: any username, token as password)
 GET /ns/:ns.json    JSON status (same auth, same data as GET /v1/nodes/:ns)
+GET /ns/:ns.yaml    Full graph as YAML (same auth, same format as depends.yml)
 
 ## Machine-readable docs
 

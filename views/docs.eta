@@ -264,10 +264,16 @@ notifications:
   <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace.json</p>
   <p>Same data as JSON. Identical output to <code>GET /v1/nodes/:namespace</code>.</p>
 
+  <p class="endpoint" style="margin-top: 1rem;"><span class="method get">GET</span> /ns/:namespace.yaml</p>
+  <p>Full graph as YAML &mdash; nodes, edges, and notification rules. Same format as <code>depends.yml</code>.</p>
+
 <pre><code># Plain text
 curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject
 
 # JSON
-curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.json</code></pre>
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.json
+
+# YAML (full graph)
+curl -u me@example.com:dep_yourtoken https://depends.cc/ns/myproject.yaml</code></pre>
   <p>In a browser, visiting <code>/ns/myproject</code> will prompt for credentials.</p>
 </div>

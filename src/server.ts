@@ -215,7 +215,7 @@ export function createApp(db: Database) {
       if (format === "json") return handleListNodes(db, a.nsId, namespace);
       if (format === "yaml") {
         const { exportYaml } = await import("./graph/yaml");
-        return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "application/yaml" } });
+        return new Response(exportYaml(db, a.nsId, namespace), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
       return formatNodesAsText(handleListNodes(db, a.nsId, namespace));
     })
