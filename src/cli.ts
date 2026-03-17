@@ -154,12 +154,19 @@ async function cmdSignup(config: Config, args: string[]) {
     body: JSON.stringify({ email }),
     contentType: "application/json",
   });
+  const text = await res.text();
+  let data: Record<string, string>;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`Error: Unexpected response from server (${res.status}):`);
+    console.error(text.slice(0, 200));
+    process.exit(1);
+  }
   if (!res.ok) {
-    const data = await res.json();
     console.error(`Error: ${data.error}`);
     process.exit(1);
   }
-  const data = await res.json();
   console.log(data.message);
   console.log(`\nOnce you receive your token, save it:`);
   console.log(`  export DEPENDS_TOKEN=<your-token>`);
