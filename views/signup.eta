@@ -48,6 +48,12 @@
 
   <div class="step">
     <span class="step-num">1</span>
+    <h3>Install</h3>
+<pre><code>curl -fsSL https://depends.cc/install.sh | sh</code></pre>
+  </div>
+
+  <div class="step">
+    <span class="step-num">2</span>
     <h3>Sign up with your email</h3>
     <p>Use the CLI:</p>
 <pre><code>depends signup you@example.com</code></pre>
@@ -59,14 +65,14 @@
   </div>
 
   <div class="step">
-    <span class="step-num">2</span>
+    <span class="step-num">3</span>
     <h3>Define your graph</h3>
 <pre><code>depends init</code></pre>
     <p>Edit <code>depends.yml</code> to define your nodes and dependencies.</p>
   </div>
 
   <div class="step">
-    <span class="step-num">3</span>
+    <span class="step-num">4</span>
     <h3>Push and go</h3>
 <pre><code>depends push
 depends status</code></pre>
