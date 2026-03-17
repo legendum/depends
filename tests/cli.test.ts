@@ -173,8 +173,8 @@ describe("depends CLI", () => {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
-          "X-Depends-Reason": "disk full",
-          "X-Depends-Solution": "Clear /var/log",
+          "X-Reason": "disk full",
+          "X-Solution": "Clear /var/log",
         },
       });
 

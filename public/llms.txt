@@ -56,8 +56,8 @@ GET    /v1/usage/:ns                            Usage stats and limits
 
 PUT /v1/state/:ns/:id/red
 Headers:
-  X-Depends-Reason: disk full on /var/data
-  X-Depends-Solution: Clear /var/log, expand volume
+  X-Reason: disk full on /var/data
+  X-Solution: Clear /var/log, expand volume
 
 ## Local mode
 

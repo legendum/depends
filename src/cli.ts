@@ -395,11 +395,11 @@ async function cmdSet(config: Config, args: string[]) {
   const headers: Record<string, string> = {};
   const reasonIdx = args.indexOf("--reason");
   if (reasonIdx !== -1 && args[reasonIdx + 1]) {
-    headers["X-Depends-Reason"] = args[reasonIdx + 1];
+    headers["X-Reason"] = args[reasonIdx + 1];
   }
   const solutionIdx = args.indexOf("--solution");
   if (solutionIdx !== -1 && args[solutionIdx + 1]) {
-    headers["X-Depends-Solution"] = args[solutionIdx + 1];
+    headers["X-Solution"] = args[solutionIdx + 1];
   }
 
   const res = await api(config, `/state/${ns}/${nodeId}/${state}`, {

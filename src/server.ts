@@ -201,7 +201,7 @@ export function createApp(db: Database) {
               { method: "GET", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Get single node detail" },
               { method: "PUT", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Create/update node", body: { label: "string?", depends_on: "string[]?", default_state: "string?", meta: "string?", ttl: "string?" } },
               { method: "DELETE", path: "/v1/nodes/:namespace/:nodeId", auth: "namespace", description: "Delete node" },
-              { method: "PUT", path: "/v1/state/:namespace/:nodeId/:state", auth: "namespace", description: "Set node state (green/yellow/red)", headers: { "X-Depends-Reason": "string?", "X-Depends-Solution": "string?" } },
+              { method: "PUT", path: "/v1/state/:namespace/:nodeId/:state", auth: "namespace", description: "Set node state (green/yellow/red)", headers: { "X-Reason": "string?", "X-Solution": "string?" } },
               { method: "GET", path: "/v1/events/:namespace[/:nodeId]", auth: "namespace", description: "List state change events", query: { limit: "number?", since: "ISO date?", until: "ISO date?" } },
               { method: "GET", path: "/v1/graph/:namespace", auth: "namespace", description: "Get full graph (add ?format=yaml for YAML)" },
               { method: "PUT", path: "/v1/graph/:namespace", auth: "namespace", description: "Upload YAML graph (?prune=true to remove unlisted nodes)", content_type: "application/yaml" },

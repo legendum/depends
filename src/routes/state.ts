@@ -18,8 +18,8 @@ export async function handlePutState(
     return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
   }
 
-  const reason = req.headers.get("X-Depends-Reason");
-  const solution = req.headers.get("X-Depends-Solution");
+  const reason = req.headers.get("X-Reason");
+  const solution = req.headers.get("X-Solution");
 
   if (!VALID_STATES.includes(state as (typeof VALID_STATES)[number])) {
     return Response.json({ error: "Invalid state. Use green, yellow, or red." }, { status: 400 });

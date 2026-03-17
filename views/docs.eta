@@ -199,13 +199,13 @@ notifications:
   <p>Set a node's state to <code>green</code>, <code>yellow</code>, or <code>red</code>. Auto-creates the node if it doesn't exist.</p>
   <p>Optional headers:</p>
   <ul>
-    <li><code>X-Depends-Reason</code> &mdash; why is this state being set?</li>
-    <li><code>X-Depends-Solution</code> &mdash; what should be done to resolve it?</li>
+    <li><code>X-Reason</code> &mdash; why is this state being set?</li>
+    <li><code>X-Solution</code> &mdash; what should be done to resolve it?</li>
   </ul>
 <pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
   -H "Authorization: Bearer $TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data" \
-  -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
+  -H "X-Reason: disk full on /var/data" \
+  -H "X-Solution: Clear /var/log, expand volume"</code></pre>
 </div>
 
 <div class="config-block">

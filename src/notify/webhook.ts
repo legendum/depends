@@ -43,7 +43,7 @@ export async function sendWebhook(
   };
 
   if (secret) {
-    headers["X-Depends-Signature"] = await computeSignature(body, secret);
+    headers["X-Signature"] = await computeSignature(body, secret);
   }
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {

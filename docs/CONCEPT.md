@@ -106,7 +106,7 @@ All fields optional on update (patch semantics). `depends_on` references other n
 }
 ```
 
-Note: `effective_state` is `red` here because a dependency (e.g., `database`) is red, even though this node's own `state` is `green`. `reason` and `solution` are optional values set via the `X-Depends-Reason` and `X-Depends-Solution` headers on state updates.
+Note: `effective_state` is `red` here because a dependency (e.g., `database`) is red, even though this node's own `state` is `green`. `reason` and `solution` are optional values set via the `X-Reason` and `X-Solution` headers on state updates.
 
 ### State (shorthand)
 
@@ -128,8 +128,8 @@ Optionally include a reason and a recommended solution via headers (the caller k
 ```bash
 curl -X PUT https://depends.cc/v1/state/acme/api-server/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data" \
-  -H "X-Depends-Solution: Check disk usage (df -h), clear logs, expand volume."
+  -H "X-Reason: disk full on /var/data" \
+  -H "X-Solution: Check disk usage (df -h), clear logs, expand volume."
 ```
 
 `reason` and `solution` are stored on the node and included in webhook payloads and event history. They answer "why is this red?" and "what should I do?"
@@ -247,7 +247,7 @@ depends.cc sends a `POST` to the URL with:
 ```
 
 Headers:
-- `X-Depends-Signature`: HMAC-SHA256 of the body using the `secret`, for authenticity verification.
+- `X-Signature`: HMAC-SHA256 of the body using the `secret`, for authenticity verification.
 
 On non-2xx response: retries 3 times with exponential backoff (~5 minutes total), then logs failure and stops.
 

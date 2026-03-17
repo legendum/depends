@@ -125,8 +125,8 @@ nodes:
   <p>Attach human-readable context on every state change: why it's happening, and what to do next.</p>
 <pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN" \
-  -H "X-Depends-Reason: disk full on /var/data" \
-  -H "X-Depends-Solution: Clear /var/log, expand volume"</code></pre>
+  -H "X-Reason: disk full on /var/data" \
+  -H "X-Solution: Clear /var/log, expand volume"</code></pre>
 </div>
 
 <div class="config-block">

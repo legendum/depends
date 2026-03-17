@@ -386,10 +386,10 @@ describe("state shorthand", () => {
 });
 
 describe("reason", () => {
-  test("PUT /state with X-Depends-Reason header", async () => {
+  test("PUT /state with X-Reason header", async () => {
     await api(`/state/${NS}/database/red`, {
       method: "PUT",
-      headers: { "X-Depends-Reason": "disk full on /var/data" },
+      headers: { "X-Reason": "disk full on /var/data" },
     });
 
     const node = await (await api(`/nodes/${NS}/database`)).json();
@@ -407,7 +407,7 @@ describe("reason", () => {
   test("reason updates on state change", async () => {
     await api(`/state/${NS}/database/green`, {
       method: "PUT",
-      headers: { "X-Depends-Reason": "disk cleaned up" },
+      headers: { "X-Reason": "disk cleaned up" },
     });
 
     const node = await (await api(`/nodes/${NS}/database`)).json();
@@ -424,12 +424,12 @@ describe("reason", () => {
     expect(node.reason).toBe("maintenance window");
   });
 
-  test("PUT /state with X-Depends-Solution header", async () => {
+  test("PUT /state with X-Solution header", async () => {
     await api(`/state/${NS}/database/red`, {
       method: "PUT",
       headers: {
-        "X-Depends-Reason": "disk full",
-        "X-Depends-Solution": "Run df -h and clear logs",
+        "X-Reason": "disk full",
+        "X-Solution": "Run df -h and clear logs",
       },
     });
 
