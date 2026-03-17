@@ -120,11 +120,13 @@ export function createApp(db: Database) {
     .derive(({ request }) => {
       return { requestStart: Date.now(), requestUrl: new URL(request.url) };
     })
-    .onAfterResponse(({ request, requestStart, requestUrl, set }) => {
+    .onAfterResponse(({ request, requestStart, requestUrl, set, store }) => {
       const url = requestUrl ?? new URL(request.url);
       if (url.pathname === "/favicon.png" || url.pathname === "/logo.png") return;
+      const a = (store as Record<string, unknown>).auth as AuthResult | undefined;
       logRequest({
         ts: new Date().toISOString(),
+        tid: a?.tokenId ?? undefined,
         method: request.method,
         path: url.pathname,
         query: url.search || undefined,
