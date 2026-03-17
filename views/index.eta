@@ -58,10 +58,10 @@
   <p>depends.cc tracks the state of things (nodes) and what they depend on.</p>
   <p>Each node is a traffic light:</p>
 
-  <div class="lights" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding-left: 1rem;">
-    <span class="light"><span class="dot red"></span> <strong>Red</strong> &mdash; errored, blocked, or unreachable</span>
-    <span class="light"><span class="dot yellow"></span> <strong>Yellow</strong> &mdash; pending, deploying, or unknown</span>
-    <span class="light"><span class="dot green"></span> <strong>Green</strong> &mdash; healthy, operating normally</span>
+  <div style="display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; padding-left: 1rem; align-items: center;">
+    <span class="light"><span class="dot red"></span> <strong>Red</strong></span> <span>errored, blocked, or unreachable</span>
+    <span class="light"><span class="dot yellow"></span> <strong>Yellow</strong></span> <span>pending, deploying, or unknown</span>
+    <span class="light"><span class="dot green"></span> <strong>Green</strong></span> <span>healthy, operating normally</span>
   </div>
 
   <p>When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service upstream is effectively red too &mdash; automatically, without updating each one:</p>
