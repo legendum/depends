@@ -148,6 +148,9 @@ export function createApp(db: Database) {
     // Static files
     .get("/favicon.png", () => Bun.file(join(PUBLIC_DIR, "favicon.png")))
     .get("/logo.png", () => Bun.file(join(PUBLIC_DIR, "logo.png")))
+    .get("/example.svg", () => new Response(Bun.file(join(PUBLIC_DIR, "example.svg")), {
+      headers: { "Content-Type": "image/svg+xml" },
+    }))
     .get("/llms.txt", () => new Response(Bun.file(join(PUBLIC_DIR, "llms.txt")), {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     }))

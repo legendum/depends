@@ -66,11 +66,8 @@
 
   <p style="margin-top: 1.25rem;">When a node's state changes, depends.cc computes the <strong>effective state</strong> of everything that depends on it. If your database goes red, every service that depends on it is effectively red too &mdash; automatically, without updating each one:</p>
 
-  <div class="tree" style="padding-left: 1rem;">
-    <span class="red">&#9679;</span> database <span class="dim">&mdash; disk full on /var/data</span><br>
-    &nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> api-server <span class="dim">(depends on database &rarr; effective: red)</span><br>
-    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="red">&#9679;</span> worker <span class="dim">(depends on api-server &rarr; effective: red)</span><br>
-    <span class="green">&#9679;</span> auth-service<br>
+  <div style="text-align: center; margin: 1rem 0;">
+    <img src="/example.svg" alt="Example dependency graph showing state propagation" style="max-width: 100%; height: auto;">
   </div>
 </div>
 
