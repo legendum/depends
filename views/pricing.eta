@@ -52,7 +52,7 @@
     </thead>
     <tbody>
       <tr><td>State write</td><td>Ⱡ 1</td></tr>
-      <tr><td>Node create</td><td>Ⱡ 5</td></tr>
+      <tr><td>Node create</td><td>Ⱡ 1</td></tr>
       <tr><td>Webhook send</td><td>Ⱡ 2</td></tr>
       <tr><td>Email send</td><td>Ⱡ 2</td></tr>
     </tbody>

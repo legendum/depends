@@ -56,7 +56,7 @@ export async function handlePutNode(
     .get(nsId, nodeId) as { state: string } | null;
 
   if (!existing) {
-    const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${nodeId}`);
+    const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${nodeId}`);
     if (chargeErr) return chargeErr;
   }
 
@@ -120,7 +120,7 @@ export async function handlePutNode(
     for (const dep of body.depends_on) {
       const depExists = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, dep);
       if (!depExists) {
-        const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${dep}`);
+        const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${dep}`);
         if (chargeErr) return chargeErr;
         db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'yellow')").run(nsId, dep);
       }

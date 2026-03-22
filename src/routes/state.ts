@@ -52,7 +52,7 @@ export async function handlePutState(
 
   if (!existing) {
     // New node — charge for node create + state write
-    const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${nodeId}`);
+    const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${nodeId}`);
     if (chargeErr) return chargeErr;
 
     db.query(

@@ -57,7 +57,7 @@ export async function importYaml(
       if (!existing) newCount++;
     }
     if (newCount > 0) {
-      await legendum.charge(legendumToken, newCount * 5, `graph import: ${newCount} new node${newCount > 1 ? "s" : ""}`);
+      await legendum.charge(legendumToken, newCount * 1, `graph import: ${newCount} new node${newCount > 1 ? "s" : ""}`);
     }
   }
 
