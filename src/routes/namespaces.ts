@@ -32,7 +32,7 @@ export async function handleSignup(
   // Link agent key to this service via Legendum
   let legendumToken: string;
   try {
-    const result = await legendum.linkAgent(body.account_key);
+    const result = await legendum.linkAccount(body.account_key);
     legendumToken = result.token;
   } catch (err: any) {
     const message = err?.message || "Failed to link Legendum account";

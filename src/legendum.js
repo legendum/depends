@@ -194,13 +194,13 @@ function create(config) {
     },
 
     /**
-     * Link an agent's Legendum account to this service.
-     * The agent provides their account key (lak_...), and this creates
+     * Link a Legendum account to this service.
+     * The user provides their account key (lak_...), and this creates
      * the account-service link, returning a token for charging.
-     * @param {string} accountKey - The agent's account key (lak_...)
+     * @param {string} accountKey - The account key (lak_...)
      * @returns {Promise<{ token: string }>}
      */
-    async linkAgent(accountKey) {
+    async linkAccount(accountKey) {
       return request("POST", "/api/agent/link-service", { api_key: apiKey, secret: secret, account_key: accountKey });
     },
 
@@ -232,19 +232,19 @@ function create(config) {
 }
 
 /**
- * Create an agent client for account-holder operations.
+ * Create an account client for account-holder operations.
  * Uses an account key (lak_...) to act on behalf of a human user.
  *
- * @param {string} accountKey - The agent's account key (lak_...)
+ * @param {string} accountKey - The account key (lak_...)
  * @param {object} [config] - { baseUrl }
- * @returns {object} Agent client with balance(), transactions(), link(), unlink() methods
+ * @returns {object} Account client with balance(), transactions(), link(), unlink() methods
  *
  * Example:
- *   const agent = legendum.agent('lak_...');
- *   const { balance } = await agent.balance();
- *   await agent.link('ABC123');
+ *   const acct = legendum.account('lak_...');
+ *   const { balance } = await acct.balance();
+ *   await acct.link('ABC123');
  */
-function agent(accountKey, config) {
+function account(accountKey, config) {
   var baseUrl = (config && config.baseUrl) || env("LEGENDUM_BASE_URL") || "https://legendum.co.uk";
   var base = baseUrl.replace(/\/+$/, "");
 
@@ -636,7 +636,7 @@ function mockSdk(handlers) {
     waitForLink: h.waitForLink || async function () { return { account_token: "mock_token" }; },
     authUrl: h.authUrl || function (opts) { return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || ""); },
     exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", account_id: "lgd_mock", linked: false }; },
-    linkAgent: h.linkAgent || async function () { return { token: "mock_legendum_token" }; },
+    linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token" }; },
   };
 }
 
@@ -650,7 +650,7 @@ function unmockSdk() {
 module.exports = {
   create: create,
   service: create,
-  agent: agent,
+  account: account,
   client: client,
   isConfigured: function () { if (_mockClient) return true; try { getDefault(); return true; } catch (e) { return false; } },
   charge: function () { return getDefault().charge.apply(getDefault(), arguments); },
@@ -662,7 +662,7 @@ module.exports = {
   tab: tab,
   authUrl: function (opts) { return getDefault().authUrl(opts); },
   exchangeCode: function () { return getDefault().exchangeCode.apply(getDefault(), arguments); },
-  linkAgent: function () { return getDefault().linkAgent.apply(getDefault(), arguments); },
+  linkAccount: function () { return getDefault().linkAccount.apply(getDefault(), arguments); },
   button: button,
   linkWidget: linkWidget,
   middleware: middleware,
