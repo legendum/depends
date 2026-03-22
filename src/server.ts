@@ -49,7 +49,7 @@ function isLocalRequest(request: Request, server: unknown): boolean {
 
 function ensureLocalToken(db: Database) {
   db.query(
-    "INSERT OR IGNORE INTO tokens (id, token_hash, plan) VALUES (0, 'local', 'enterprise')"
+    "INSERT OR IGNORE INTO tokens (id, token_hash) VALUES (0, 'local')"
   ).run();
 }
 
@@ -197,7 +197,7 @@ export function createApp(db: Database) {
             base: "/v1",
             auth: "Bearer token in Authorization header",
             endpoints: [
-              { method: "POST", path: "/v1/signup", auth: false, description: "Create account, returns token" },
+              { method: "POST", path: "/v1/signup", auth: false, description: "Create account (requires Legendum account key)", body: { email: "string", account_key: "string (lak_...)" } },
               { method: "POST", path: "/v1/namespaces", auth: "token", description: "Create namespace", body: { id: "string" } },
               { method: "DELETE", path: "/v1/namespaces/:namespace", auth: "namespace", description: "Delete namespace and all data" },
               { method: "GET", path: "/v1/nodes/:namespace", auth: "namespace", description: "List all nodes" },
@@ -286,7 +286,7 @@ export function createApp(db: Database) {
       const local = isLocalRequest(request, server);
       const a = await verifyTokenOnly(db, bearer, local);
       if (!a) return Response.json({ error: "Invalid token." }, { status: 401 });
-      return handleCreateNamespace(db, request, a.tokenId, a.plan);
+      return handleCreateNamespace(db, request, a.tokenId);
     })
 
     // Namespace-scoped auth: all other routes
@@ -321,7 +321,7 @@ export function createApp(db: Database) {
             handleGetNode(db, auth(store).nsId, params.namespace, params.nodeId)
           )
           .put("/v1/nodes/:namespace/:nodeId", ({ params, request, store }) =>
-            handlePutNode(db, auth(store).nsId, params.namespace, params.nodeId, request, auth(store).plan)
+            handlePutNode(db, auth(store).nsId, params.namespace, params.nodeId, request, auth(store).legendumToken)
           )
           .delete("/v1/nodes/:namespace/:nodeId", ({ params, store }) =>
             handleDeleteNode(db, auth(store).nsId, params.nodeId)
@@ -329,7 +329,7 @@ export function createApp(db: Database) {
 
           // State shorthand
           .put("/v1/state/:namespace/:nodeId/:state", ({ params, request, store }) =>
-            handlePutState(db, auth(store).nsId, params.namespace, params.nodeId, params.state, request, auth(store).plan)
+            handlePutState(db, auth(store).nsId, params.namespace, params.nodeId, params.state, request, auth(store).legendumToken)
           )
 
           // Events
@@ -373,7 +373,7 @@ export function createApp(db: Database) {
 
           // Usage
           .get("/v1/usage/:namespace", ({ params, store }) =>
-            handleGetUsage(db, auth(store).nsId, params.namespace, auth(store).tokenId, auth(store).plan)
+            handleGetUsage(db, auth(store).nsId, params.namespace, auth(store).tokenId)
           )
     );
 

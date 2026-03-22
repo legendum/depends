@@ -6,6 +6,8 @@ import {
 import { sendWebhook, type WebhookPayload } from "./webhook";
 import { sendEmail } from "./email";
 
+const legendum = require("../legendum.js");
+
 interface NotificationRule {
   ns_id: number;
   id: string;
@@ -29,6 +31,19 @@ function ruleMatchesNode(rule: NotificationRule, nodeId: string): boolean {
   return rule.watch === "*" || rule.watch === nodeId;
 }
 
+async function chargeNotification(
+  legendumToken: string | null,
+  amount: number,
+  description: string
+): Promise<void> {
+  if (!legendumToken) return;
+  try {
+    await legendum.charge(legendumToken, amount, description);
+  } catch {
+    // best-effort — don't block notifications on charge failure
+  }
+}
+
 export function dispatchNotifications(
   db: Database,
   nsId: number,
@@ -38,7 +53,8 @@ export function dispatchNotifications(
   newState: string,
   previousEffectiveState: string | null,
   reason?: string | null,
-  solution?: string | null
+  solution?: string | null,
+  legendumToken?: string | null
 ): void {
   const newEffectiveState = computeEffectiveState(db, nsId, nodeId);
 
@@ -99,6 +115,8 @@ export function dispatchNotifications(
     .query("SELECT * FROM notification_rules WHERE ns_id = ? AND suppressed = 0")
     .all(nsId) as NotificationRule[];
 
+  const lt = legendumToken ?? null;
+
   for (const affected of affectedNodes) {
     for (const rule of rules) {
       if (!ruleMatchesNode(rule, affected.id) || !ruleMatchesState(rule, affected.newEffective)) {
@@ -126,9 +144,11 @@ export function dispatchNotifications(
 
       if (rule.url) {
         sendWebhook(rule.url, payload, rule.secret);
+        chargeNotification(lt, 2, `webhook: ${namespace}/${affected.id}`);
       }
       if (rule.email) {
         sendEmail(rule.email, payload);
+        chargeNotification(lt, 2, `email: ${namespace}/${affected.id}`);
       }
 
       if (rule.ack) {

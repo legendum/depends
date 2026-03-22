@@ -4,6 +4,13 @@ import { createServer } from "../src/server";
 import { generateToken, hashToken } from "../src/auth";
 import type { Server } from "bun";
 
+const legendum = require("../src/legendum.js");
+legendum.mock({
+  charge: () => ({ transaction_id: 1, balance: 50 }),
+  balance: () => ({ balance: 100, held: 0 }),
+  linkAgent: () => ({ token: "lt_mock_token" }),
+});
+
 let server: ReturnType<typeof createServer>;
 let baseUrl: string;
 let token: string;
@@ -62,12 +69,17 @@ async function api(
 
 describe("signup and namespaces", () => {
   test("signup requires email", async () => {
-    const res = await api("/signup", { method: "POST", auth: false });
+    const res = await api("/signup", { method: "POST", auth: false, body: { account_key: "lak_test123" } });
     expect(res.status).toBe(400);
   });
 
-  test("signup with email succeeds", async () => {
+  test("signup requires account_key", async () => {
     const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com" } });
+    expect(res.status).toBe(400);
+  });
+
+  test("signup with email and account_key succeeds", async () => {
+    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com", account_key: "lak_test123" } });
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.email).toBe("signup@example.com");
@@ -75,7 +87,7 @@ describe("signup and namespaces", () => {
   });
 
   test("duplicate email rejected", async () => {
-    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com" } });
+    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com", account_key: "lak_test123" } });
     expect(res.status).toBe(409);
   });
 
@@ -673,81 +685,10 @@ describe("usage", () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.namespace).toBe(NS);
-    expect(data.plan).toBe("free");
     expect(typeof data.nodes).toBe("number");
     expect(typeof data.active_nodes).toBe("number");
     expect(typeof data.total_events).toBe("number");
     expect(data.period).toMatch(/^\d{4}-\d{2}$/);
-  });
-});
-
-describe("plan limits", () => {
-  let limitToken: string;
-  const limitNs = "limit-test";
-
-  test("setup: create token and namespace", async () => {
-    // Create a token directly
-    limitToken = generateToken();
-    const limitHash = await hashToken(limitToken);
-    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(limitHash, "limit@example.com");
-
-    // Create namespace
-    const res = await fetch(`${baseUrl}/namespaces`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${limitToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ id: limitNs }),
-    });
-    expect(res.status).toBe(201);
-  });
-
-  test("namespace limit enforced on free plan", async () => {
-    // Free plan = 1 namespace. Already created one, so second should fail.
-    const res = await fetch(`${baseUrl}/namespaces`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${limitToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ id: "limit-test-2" }),
-    });
-    expect(res.status).toBe(402);
-  });
-
-  test("node limit enforced on free plan", async () => {
-    // Create 10 nodes (the free limit)
-    for (let i = 0; i < 10; i++) {
-      const res = await fetch(`${baseUrl}/nodes/${limitNs}/node-${i}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${limitToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ state: "green" }),
-      });
-      expect(res.status).toBe(201);
-    }
-
-    // 11th node should fail
-    const res = await fetch(`${baseUrl}/nodes/${limitNs}/node-overflow`, {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${limitToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ state: "green" }),
-    });
-    expect(res.status).toBe(402);
-  });
-
-  test("node limit enforced on PUT /state auto-create", async () => {
-    const res = await fetch(`${baseUrl}/state/${limitNs}/auto-overflow/green`, {
-      method: "PUT",
-      headers: { Authorization: `Bearer ${limitToken}` },
-    });
-    expect(res.status).toBe(402);
   });
 });
 

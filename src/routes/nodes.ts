@@ -1,8 +1,10 @@
 import { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
 import { wouldCreateCycle } from "../graph/cycle";
-import { PLAN_LIMITS, parseTtl } from "../db";
+import { parseTtl } from "../db";
 import { dispatchNotifications } from "../notify/dispatcher";
+
+const legendum = require("../legendum.js");
 
 interface NodeBody {
   state?: string;
@@ -15,35 +17,24 @@ interface NodeBody {
   meta?: Record<string, unknown>;
 }
 
-function checkNodeLimit(db: Database, nsId: number, plan: string): Response | null {
-  const limits = PLAN_LIMITS[plan];
-  const count = db
-    .query("SELECT COUNT(*) as c FROM nodes WHERE ns_id = ?")
-    .get(nsId) as { c: number };
-  if (count.c >= limits.nodes) {
-    return Response.json(
-      { error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.` },
-      { status: 402 }
-    );
+async function chargeCredits(
+  legendumToken: string | null,
+  amount: number,
+  description: string
+): Promise<Response | null> {
+  if (!legendumToken) return null; // local mode, no charge
+  try {
+    await legendum.charge(legendumToken, amount, description);
+    return null;
+  } catch (err: any) {
+    if (err.code === "insufficient_funds") {
+      return Response.json(
+        { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
+        { status: 402 }
+      );
+    }
+    throw err;
   }
-  return null;
-}
-
-function checkEventLimit(db: Database, nsId: number, plan: string): Response | null {
-  const limits = PLAN_LIMITS[plan];
-  const count = db
-    .query(
-      `SELECT COUNT(*) as c FROM events
-       WHERE ns_id = ? AND created_at >= datetime('now', 'start of month')`
-    )
-    .get(nsId) as { c: number };
-  if (count.c >= limits.events) {
-    return Response.json(
-      { error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.` },
-      { status: 402 }
-    );
-  }
-  return null;
 }
 
 export async function handlePutNode(
@@ -52,7 +43,7 @@ export async function handlePutNode(
   namespace: string,
   nodeId: string,
   req: Request,
-  plan: string
+  legendumToken: string | null
 ): Promise<Response> {
   if (nodeId.includes("/")) {
     return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
@@ -65,8 +56,8 @@ export async function handlePutNode(
     .get(nsId, nodeId) as { state: string } | null;
 
   if (!existing) {
-    const limitErr = checkNodeLimit(db, nsId, plan);
-    if (limitErr) return limitErr;
+    const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${nodeId}`);
+    if (chargeErr) return chargeErr;
   }
 
   const validStates = ["green", "yellow", "red"];
@@ -129,8 +120,8 @@ export async function handlePutNode(
     for (const dep of body.depends_on) {
       const depExists = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, dep);
       if (!depExists) {
-        const limitErr = checkNodeLimit(db, nsId, plan);
-        if (limitErr) return limitErr;
+        const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${dep}`);
+        if (chargeErr) return chargeErr;
         db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'yellow')").run(nsId, dep);
       }
 
@@ -146,11 +137,8 @@ export async function handlePutNode(
   }
 
   if (stateChanged) {
-    const eventLimitErr = checkEventLimit(db, nsId, plan);
-    if (eventLimitErr) return eventLimitErr;
-
     const prevEffective = prevState ? computeEffectiveState(db, nsId, nodeId) : null;
-    dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, body.reason ?? null, body.solution ?? null);
+    dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, body.reason ?? null, body.solution ?? null, legendumToken);
   }
 
   const node = db

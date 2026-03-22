@@ -32,14 +32,27 @@ describe("auth", () => {
     const db = createTestDb();
     const token = "dep_test123";
     const hash = await hashToken(token);
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES (?, 'free')").run(hash);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
     db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
 
     const result = await verifyToken(db, "myns", token);
     expect(result).not.toBeNull();
     expect(result!.tokenId).toBe(Number(tokenId));
     expect(result!.nsId).toBeGreaterThan(0);
-    expect(result!.plan).toBe("free");
+    expect(result!.legendumToken).toBeNull();
+    db.close();
+  });
+
+  test("verifyToken returns legendumToken when set", async () => {
+    const db = createTestDb();
+    const token = "dep_linked";
+    const hash = await hashToken(token);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, legendum_token) VALUES (?, 'lt_abc')").run(hash);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
+
+    const result = await verifyToken(db, "myns", token);
+    expect(result).not.toBeNull();
+    expect(result!.legendumToken).toBe("lt_abc");
     db.close();
   });
 
@@ -73,12 +86,12 @@ describe("auth", () => {
     const db = createTestDb();
     const token = "dep_only";
     const hash = await hashToken(token);
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES (?, 'pro')").run(hash);
+    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
 
     const result = await verifyTokenOnly(db, token);
     expect(result).not.toBeNull();
     expect(result!.tokenId).toBe(Number(tokenId));
-    expect(result!.plan).toBe("pro");
+    expect(result!.legendumToken).toBeNull();
     db.close();
   });
 

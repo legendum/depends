@@ -8,7 +8,7 @@ let nsId: number;
 
 function setup() {
   db = createTestDb();
-  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, plan) VALUES ('h', 'free')").run();
+  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES ('h')").run();
   const { lastInsertRowid } = db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(tokenId);
   nsId = Number(lastInsertRowid);
   db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'a', 'green')").run(nsId);
@@ -28,10 +28,10 @@ function eventCount(): number {
 describe("purge expired events", () => {
   beforeEach(setup);
 
-  test("purges events older than 7 days on free plan", () => {
+  test("purges events older than 30 days", () => {
     addEvent(1);
-    addEvent(8);
-    addEvent(10);
+    addEvent(31);
+    addEvent(35);
 
     const purged = purgeExpiredEvents(db);
     expect(purged).toBe(2);
@@ -40,23 +40,12 @@ describe("purge expired events", () => {
 
   test("keeps events within retention period", () => {
     addEvent(1);
-    addEvent(5);
-    addEvent(6);
+    addEvent(15);
+    addEvent(29);
 
     const purged = purgeExpiredEvents(db);
     expect(purged).toBe(0);
     expect(eventCount()).toBe(3);
-  });
-
-  test("pro plan retains 30 days", () => {
-    db.query("UPDATE tokens SET plan = 'pro' WHERE token_hash = 'h'").run();
-
-    addEvent(25);
-    addEvent(31);
-
-    const purged = purgeExpiredEvents(db);
-    expect(purged).toBe(1);
-    expect(eventCount()).toBe(1);
   });
 
   test("purges nothing when no events", () => {

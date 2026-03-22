@@ -1,20 +1,27 @@
 import { Database } from "bun:sqlite";
 import { generateToken, hashToken } from "../auth";
-import { PLAN_LIMITS } from "../db";
 import { sendSignupEmail } from "../notify/email";
+
+const legendum = require("../legendum.js");
 
 export async function handleSignup(
   db: Database,
   req: Request
 ): Promise<Response> {
-  let email: string | undefined;
+  let body: { email?: string; account_key?: string };
   try {
-    const body = (await req.json()) as { email?: string };
-    email = body.email?.trim().toLowerCase();
-  } catch {}
+    body = (await req.json()) as { email?: string; account_key?: string };
+  } catch {
+    return Response.json({ error: "Invalid JSON." }, { status: 400 });
+  }
 
+  const email = body.email?.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return Response.json({ error: "A valid email address is required." }, { status: 400 });
+  }
+
+  if (!body.account_key || !body.account_key.startsWith("lak_")) {
+    return Response.json({ error: "A Legendum account key (lak_...) is required." }, { status: 400 });
   }
 
   const existing = db.query("SELECT id FROM tokens WHERE email = ?").get(email);
@@ -22,10 +29,21 @@ export async function handleSignup(
     return Response.json({ error: "An account with this email already exists." }, { status: 409 });
   }
 
+  // Link agent key to this service via Legendum
+  let legendumToken: string;
+  try {
+    const result = await legendum.linkAgent(body.account_key);
+    legendumToken = result.token;
+  } catch (err: any) {
+    const message = err?.message || "Failed to link Legendum account";
+    const status = err?.status || 502;
+    return Response.json({ error: message }, { status });
+  }
+
   const token = generateToken();
   const hash = await hashToken(token);
 
-  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, email);
+  db.query("INSERT INTO tokens (token_hash, email, legendum_token) VALUES (?, ?, ?)").run(hash, email, legendumToken);
 
   sendSignupEmail(email, token);
 
@@ -38,8 +56,7 @@ export async function handleSignup(
 export async function handleCreateNamespace(
   db: Database,
   req: Request,
-  tokenId: number,
-  plan: string
+  tokenId: number
 ): Promise<Response> {
   const body = (await req.json()) as { id?: string };
   const id = body.id;
@@ -61,17 +78,6 @@ export async function handleCreateNamespace(
 
   if (existing) {
     return Response.json({ error: "Namespace already exists." }, { status: 409 });
-  }
-
-  const limits = PLAN_LIMITS[plan];
-  const nsCount = db
-    .query("SELECT COUNT(*) as c FROM namespaces WHERE token_id = ?")
-    .get(tokenId) as { c: number };
-  if (nsCount.c >= limits.namespaces) {
-    return Response.json(
-      { error: `Namespace limit reached for ${plan} plan (${limits.namespaces} namespaces). Upgrade at depends.cc.` },
-      { status: 402 }
-    );
   }
 
   db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(id, tokenId);

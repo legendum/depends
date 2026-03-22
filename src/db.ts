@@ -6,12 +6,12 @@ PRAGMA busy_timeout=5000;
 PRAGMA foreign_keys=ON;
 
 CREATE TABLE IF NOT EXISTS tokens (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  token_hash  TEXT NOT NULL UNIQUE,
-  email       TEXT,
-  plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
-  meta        TEXT DEFAULT '{}',
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_hash      TEXT NOT NULL UNIQUE,
+  email           TEXT,
+  legendum_token  TEXT,
+  meta            TEXT DEFAULT '{}',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS namespaces (
@@ -83,12 +83,6 @@ CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(ns_id, node_id, id);
 CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(ns_id, to_node);
 `;
 
-export const PLAN_LIMITS: Record<string, { nodes: number; events: number; namespaces: number; eventRetentionDays: number }> = {
-  free: { nodes: 10, events: 100, namespaces: 1, eventRetentionDays: 7 },
-  pro: { nodes: 500, events: 5_000, namespaces: 5, eventRetentionDays: 30 },
-  team: { nodes: 2_000, events: 20_000, namespaces: 20, eventRetentionDays: 30 },
-  enterprise: { nodes: 100_000, events: 1_000_000, namespaces: 500, eventRetentionDays: 30 },
-};
 
 /**
  * Parse a TTL duration string like "10m", "1h", "30s" into seconds.

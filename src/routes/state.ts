@@ -1,9 +1,30 @@
 import { Database } from "bun:sqlite";
-import { PLAN_LIMITS } from "../db";
 import { computeEffectiveState } from "../graph/effective";
 import { dispatchNotifications } from "../notify/dispatcher";
 
+const legendum = require("../legendum.js");
+
 const VALID_STATES = ["green", "yellow", "red"] as const;
+
+async function chargeCredits(
+  legendumToken: string | null,
+  amount: number,
+  description: string
+): Promise<Response | null> {
+  if (!legendumToken) return null;
+  try {
+    await legendum.charge(legendumToken, amount, description);
+    return null;
+  } catch (err: any) {
+    if (err.code === "insufficient_funds") {
+      return Response.json(
+        { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
+        { status: 402 }
+      );
+    }
+    throw err;
+  }
+}
 
 export async function handlePutState(
   db: Database,
@@ -12,7 +33,7 @@ export async function handlePutState(
   nodeId: string,
   state: string,
   req: Request,
-  plan: string
+  legendumToken: string | null
 ): Promise<Response> {
   if (nodeId.includes("/")) {
     return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
@@ -29,32 +50,19 @@ export async function handlePutState(
     .query("SELECT state FROM nodes WHERE ns_id = ? AND id = ?")
     .get(nsId, nodeId) as { state: string } | null;
 
-  const limits = PLAN_LIMITS[plan];
-
   if (!existing) {
-    const count = db.query("SELECT COUNT(*) as c FROM nodes WHERE ns_id = ?").get(nsId) as { c: number };
-    if (count.c >= limits.nodes) {
-      return Response.json(
-        { error: `Node limit reached for ${plan} plan (${limits.nodes} nodes). Upgrade at depends.cc.` },
-        { status: 402 }
-      );
-    }
+    // New node — charge for node create + state write
+    const chargeErr = await chargeCredits(legendumToken, 5, `node create: ${namespace}/${nodeId}`);
+    if (chargeErr) return chargeErr;
 
     db.query(
       "INSERT INTO nodes (ns_id, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))"
     ).run(nsId, nodeId, state, reason, solution);
 
-    const eventCount = db
-      .query(`SELECT COUNT(*) as c FROM events WHERE ns_id = ? AND created_at >= datetime('now', 'start of month')`)
-      .get(nsId) as { c: number };
-    if (eventCount.c >= limits.events) {
-      return Response.json(
-        { error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.` },
-        { status: 402 }
-      );
-    }
+    const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+    if (writeErr) return writeErr;
 
-    dispatchNotifications(db, nsId, namespace, nodeId, null, state, null, reason, solution);
+    dispatchNotifications(db, nsId, namespace, nodeId, null, state, null, reason, solution, legendumToken);
     return new Response(null, { status: 204 });
   }
 
@@ -62,18 +70,16 @@ export async function handlePutState(
     db.query(
       "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE ns_id = ? AND id = ?"
     ).run(reason, solution, nsId, nodeId);
+
+    const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+    if (writeErr) return writeErr;
+
     return new Response(null, { status: 204 });
   }
 
-  const eventCount = db
-    .query(`SELECT COUNT(*) as c FROM events WHERE ns_id = ? AND created_at >= datetime('now', 'start of month')`)
-    .get(nsId) as { c: number };
-  if (eventCount.c >= limits.events) {
-    return Response.json(
-      { error: `Event limit reached for ${plan} plan (${limits.events} events/month). Upgrade at depends.cc.` },
-      { status: 402 }
-    );
-  }
+  // State change — charge for state write
+  const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+  if (writeErr) return writeErr;
 
   const prevState = existing.state;
   const prevEffective = computeEffectiveState(db, nsId, nodeId);
@@ -83,7 +89,7 @@ export async function handlePutState(
      WHERE ns_id = ? AND id = ?`
   ).run(state, reason, solution, nsId, nodeId);
 
-  dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, reason, solution);
+  dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, reason, solution, legendumToken);
 
   return new Response(null, { status: 204 });
 }

@@ -44,45 +44,42 @@
 
 <div class="signup-box">
   <h2>Sign up</h2>
-  <p>Get started in under a minute.<br>Free tier, no credit card required.</p>
+  <p>Get started in under a minute. Powered by <a href="https://legendum.co.uk"><strong>Ⱡ Credits</strong></a>.</p>
 
   <div class="step">
     <span class="step-num">1</span>
+    <h3>Get a Legendum account key</h3>
+    <p>Sign up at <a href="https://legendum.co.uk/account">legendum.co.uk</a> and create an agent key in your account.</p>
+  </div>
+
+  <div class="step">
+    <span class="step-num">2</span>
     <h3>Install</h3>
 <pre><code>curl -fsSL https://depends.cc/install.sh | sh</code></pre>
   </div>
 
   <div class="step">
-    <span class="step-num">2</span>
-    <h3>Sign up with your email</h3>
-<pre><code>depends signup you@example.com</code></pre>
+    <span class="step-num">3</span>
+    <h3>Sign up with your email and key</h3>
+<pre><code>depends signup you@example.com lak_...</code></pre>
     <p>Or curl:</p>
 <pre><code>curl -s -X POST https://depends.cc/v1/signup \
   -H "Content-Type: application/json" \
-  -d '{"email":"you@example.com"}'</code></pre>
-    <p>Your token will be emailed to you. Save it to <code>~/.depends/config.yml</code> or set <code>DEPENDS_TOKEN</code>.</p>
+  -d '{"email":"you@example.com","account_key":"lak_..."}'</code></pre>
+    <p>Your depends.cc token will be emailed to you.</p>
   </div>
 
   <div class="step">
-    <span class="step-num">3</span>
+    <span class="step-num">4</span>
     <h3>Define your graph</h3>
 <pre><code>depends init</code></pre>
     <p>Edit <code>depends.yml</code> to define your nodes and dependencies.</p>
   </div>
 
   <div class="step">
-    <span class="step-num">4</span>
+    <span class="step-num">5</span>
     <h3>Push and go</h3>
 <pre><code>depends push
 depends status</code></pre>
-  </div>
-
-  <div class="step">
-    <span class="step-num">5</span>
-    <h3>Set a node's state</h3>
-<pre><code>depends set myproject/database red \
-  --reason "disk full on /var/data" \
-  --solution "clear logs, increase volume"</code></pre>
-    <p>Replace <code>myproject/database</code> with your own namespace and node ID.</p>
   </div>
 </div>

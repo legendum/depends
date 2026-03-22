@@ -139,8 +139,10 @@ function colorState(state: string): string {
 // --- Commands ---
 
 async function cmdSignup(config: Config, args: string[]) {
-  // Get email from args or prompt
+  // Get email and account key from args or prompt
   let email = args.find((a) => a.includes("@"));
+  let accountKey = args.find((a) => a.startsWith("lak_"));
+
   if (!email) {
     process.stdout.write("Email: ");
     email = (await new Promise<string>((resolve) => {
@@ -157,10 +159,26 @@ async function cmdSignup(config: Config, args: string[]) {
     }));
   }
 
+  if (!accountKey) {
+    process.stdout.write("Legendum account key (lak_...): ");
+    accountKey = (await new Promise<string>((resolve) => {
+      let input = "";
+      process.stdin.setEncoding("utf-8");
+      process.stdin.on("data", (chunk) => {
+        input += chunk;
+        if (input.includes("\n")) {
+          process.stdin.pause();
+          resolve(input.trim());
+        }
+      });
+      process.stdin.resume();
+    }));
+  }
+
   const res = await api(config, "/signup", {
     method: "POST",
     auth: false,
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, account_key: accountKey }),
     contentType: "application/json",
   });
   const text = await res.text();
@@ -698,18 +716,10 @@ async function cmdUsage(config: Config, args: string[]) {
     return;
   }
 
-  const limits = {
-    free: { nodes: 10, events: 100 },
-    pro: { nodes: 500, events: 5_000 },
-    team: { nodes: 2_000, events: 20_000 },
-    enterprise: { nodes: 100_000, events: 1_000_000 },
-  };
-  const planLimits = limits[data.plan as keyof typeof limits] ?? limits.free;
-
-  console.log(`${COLORS.bold}${ns}${COLORS.reset} — ${data.plan} plan — ${data.period}`);
+  console.log(`${COLORS.bold}${ns}${COLORS.reset} — ${data.period}`);
   console.log();
-  console.log(`  Nodes          ${data.nodes} total, ${data.active_nodes} active this month ${COLORS.dim}(limit: ${planLimits.nodes})${COLORS.reset}`);
-  console.log(`  Events         ${data.total_events} this month ${COLORS.dim}(limit: ${planLimits.events.toLocaleString()})${COLORS.reset}`);
+  console.log(`  Nodes          ${data.nodes} total, ${data.active_nodes} active this month`);
+  console.log(`  Events         ${data.total_events} this month`);
   if (data.webhook_deliveries > 0) console.log(`  Webhooks       ${data.webhook_deliveries} fired this month`);
   if (data.emails_sent > 0) console.log(`  Emails         ${data.emails_sent} sent this month`);
 }
@@ -794,8 +804,8 @@ async function cmdAdmin(args: string[]) {
   const db = createDb(dbPath);
 
   if (sub === "tokens") {
-    const tokens = db.query("SELECT id, email, plan, created_at FROM tokens ORDER BY created_at").all() as {
-      id: string; email: string | null; plan: string; created_at: string;
+    const tokens = db.query("SELECT id, email, legendum_token, created_at FROM tokens ORDER BY created_at").all() as {
+      id: string; email: string | null; legendum_token: string | null; created_at: string;
     }[];
 
     if (tokens.length === 0) {
@@ -804,49 +814,15 @@ async function cmdAdmin(args: string[]) {
     }
 
     const maxEmail = Math.max(5, ...tokens.map((t) => (t.email ?? "-").length));
-    const maxPlan = Math.max(4, ...tokens.map((t) => t.plan.length));
 
     for (const t of tokens) {
       const email = (t.email ?? "-").padEnd(maxEmail);
-      const plan = t.plan.padEnd(maxPlan);
-      console.log(`  ${email}  ${plan}  ${COLORS.dim}${t.id}  ${t.created_at}${COLORS.reset}`);
+      const linked = t.legendum_token ? "linked" : "unlinked";
+      console.log(`  ${email}  ${linked}  ${COLORS.dim}${t.id}  ${t.created_at}${COLORS.reset}`);
     }
-  } else if (sub === "plan") {
-    const emailArg = args[2];
-    const planArg = args[3];
-
-    if (!emailArg) {
-      console.error("Usage: depends admin plan <email> [<plan>]");
-      process.exit(1);
-    }
-
-    const token = db.query("SELECT id, email, plan, meta FROM tokens WHERE email = ?").get(emailArg) as {
-      id: string; email: string; plan: string; meta: string | null;
-    } | null;
-
-    if (!token) {
-      console.error(`Error: No token found for email "${emailArg}".`);
-      process.exit(1);
-    }
-
-    if (!planArg) {
-      // Show current plan
-      console.log(`${token.email} — ${token.plan} plan`);
-      return;
-    }
-
-    const validPlans = ["free", "pro", "team", "enterprise"];
-    if (!validPlans.includes(planArg)) {
-      console.error(`Error: Invalid plan "${planArg}". Must be one of: ${validPlans.join(", ")}`);
-      process.exit(1);
-    }
-
-    db.query("UPDATE tokens SET plan = ? WHERE id = ?").run(planArg, token.id);
-    console.log(`${token.email} — ${token.plan} → ${planArg}`);
   } else {
     console.error(`Usage:
-  depends admin tokens              List all tokens
-  depends admin plan <email> [plan]  Show or set plan for an email`);
+  depends admin tokens              List all tokens`);
     process.exit(1);
   }
 }
@@ -879,7 +855,7 @@ function printUsage() {
 
 ${COLORS.bold}Usage:${COLORS.reset}
   depends serve [-p <port>]                   Run the server locally (default: 3000)
-  depends signup <email>                      Sign up (token emailed to you)
+  depends signup <email> <lak_...>             Sign up (token emailed to you)
   depends init                                Create a depends.yml in the current directory
   depends push [--prune]                      Upload depends.yml (auto-creates namespace)
   depends pull                                Download graph as depends.yml

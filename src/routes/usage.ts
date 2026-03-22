@@ -4,8 +4,7 @@ export function handleGetUsage(
   db: Database,
   nsId: number,
   namespace: string,
-  tokenId: number,
-  plan: string
+  tokenId: number
 ): Response {
   const now = new Date();
   const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -37,7 +36,6 @@ export function handleGetUsage(
   return Response.json({
     email: token?.email ?? null,
     namespace,
-    plan,
     period,
     nodes: totalNodes.c,
     active_nodes: activeNodes.c,

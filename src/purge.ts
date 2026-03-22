@@ -1,28 +1,15 @@
 import { Database } from "bun:sqlite";
-import { PLAN_LIMITS } from "./db";
+
+const EVENT_RETENTION_DAYS = 30;
 
 export function purgeExpiredEvents(db: Database): number {
-  let total = 0;
+  const cutoff = new Date(
+    Date.now() - EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
 
-  const namespaces = db
-    .query(
-      `SELECT n.ns_id, t.plan FROM namespaces n
-       JOIN tokens t ON t.id = n.token_id`
-    )
-    .all() as { ns_id: number; plan: string }[];
+  const result = db
+    .query("DELETE FROM events WHERE created_at < ?")
+    .run(cutoff);
 
-  for (const { ns_id, plan } of namespaces) {
-    const limits = PLAN_LIMITS[plan] ?? PLAN_LIMITS.free;
-    const cutoff = new Date(
-      Date.now() - limits.eventRetentionDays * 24 * 60 * 60 * 1000
-    ).toISOString();
-
-    const result = db
-      .query("DELETE FROM events WHERE ns_id = ? AND created_at < ?")
-      .run(ns_id, cutoff);
-
-    total += result.changes;
-  }
-
-  return total;
+  return result.changes;
 }

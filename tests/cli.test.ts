@@ -5,6 +5,12 @@ import { generateToken, hashToken } from "../src/auth";
 import { existsSync, unlinkSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
+const legendum = require("../src/legendum.js");
+legendum.mock({
+  charge: () => ({ transaction_id: 1, balance: 50 }),
+  linkAgent: () => ({ token: "lt_mock_token" }),
+});
+
 let server: ReturnType<typeof createServer>;
 let baseUrl: string;
 let token: string;
@@ -110,8 +116,8 @@ describe("depends CLI", () => {
   });
 
   describe("signup", () => {
-    test("signup with email shows confirmation", async () => {
-      const { stdout, exitCode } = await cli(["signup", "newsignup@example.com"]);
+    test("signup with email and account key shows confirmation", async () => {
+      const { stdout, exitCode } = await cli(["signup", "newsignup@example.com", "lak_testkey123"]);
       expect(exitCode).toBe(0);
       expect(stdout).toContain("emailed");
     });
