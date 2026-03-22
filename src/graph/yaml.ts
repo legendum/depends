@@ -2,6 +2,8 @@ import { Database } from "bun:sqlite";
 import yaml from "js-yaml";
 import { wouldCreateCycle } from "./cycle";
 
+const legendum = require("../legendum.js");
+
 interface YamlNode {
   label?: string;
   depends_on?: string[];
@@ -32,13 +34,33 @@ export function parseYaml(content: string): YamlSpec {
   return spec;
 }
 
-export function importYaml(
+export async function importYaml(
   db: Database,
   nsId: number,
   spec: YamlSpec,
   prune: boolean = false,
-  tokenId?: number
-): void {
+  tokenId?: number,
+  legendumToken?: string | null
+): Promise<void> {
+  // Count new nodes before starting the transaction so we can charge up front
+  if (legendumToken && spec.nodes) {
+    const nodeIds = new Set<string>();
+    for (const [id, node] of Object.entries(spec.nodes)) {
+      nodeIds.add(id);
+      if (node.depends_on) {
+        for (const dep of node.depends_on) nodeIds.add(dep);
+      }
+    }
+    let newCount = 0;
+    for (const id of nodeIds) {
+      const existing = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, id);
+      if (!existing) newCount++;
+    }
+    if (newCount > 0) {
+      await legendum.charge(legendumToken, newCount * 5, `graph import: ${newCount} new node${newCount > 1 ? "s" : ""}`);
+    }
+  }
+
   db.exec("BEGIN TRANSACTION");
   try {
     const nodeIds = new Set<string>();

@@ -75,7 +75,8 @@ export async function handlePutGraph(
   nsId: number,
   namespace: string,
   req: Request,
-  tokenId: number
+  tokenId: number,
+  legendumToken: string | null
 ): Promise<Response> {
   const url = new URL(req.url);
   const prune = url.searchParams.get("prune") === "true";
@@ -92,9 +93,15 @@ export async function handlePutGraph(
       );
     }
 
-    importYaml(db, nsId, spec, prune, tokenId);
+    await importYaml(db, nsId, spec, prune, tokenId, legendumToken);
     return Response.json({ ok: true });
-  } catch (e: unknown) {
+  } catch (e: any) {
+    if (e.code === "insufficient_funds") {
+      return Response.json(
+        { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
+        { status: 402 }
+      );
+    }
     const message = e instanceof Error ? e.message : "Invalid YAML";
     const status = message.includes("Cycle") ? 409 : 400;
     return Response.json({ error: message }, { status });

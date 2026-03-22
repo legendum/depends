@@ -345,7 +345,7 @@ export function createApp(db: Database) {
             handleGetGraph(db, auth(store).nsId, params.namespace, new URL(request.url))
           )
           .put("/v1/graph/:namespace", ({ params, request, store }) =>
-            handlePutGraph(db, auth(store).nsId, params.namespace, request, auth(store).tokenId)
+            handlePutGraph(db, auth(store).nsId, params.namespace, request, auth(store).tokenId, auth(store).legendumToken)
           )
           .get("/v1/graph/:namespace/:nodeId", ({ params, store }) =>
             handleGetSubgraph(db, auth(store).nsId, params.namespace, params.nodeId)
