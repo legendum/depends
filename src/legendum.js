@@ -201,7 +201,7 @@ function create(config) {
      * @returns {Promise<{ token: string }>}
      */
     async linkAgent(accountKey) {
-      return request("POST", "/api/agent/link-service", { account_key: accountKey });
+      return request("POST", "/api/agent/link-service", { api_key: apiKey, secret: secret, account_key: accountKey });
     },
 
     /**
