@@ -29,7 +29,7 @@
   <li><strong>Local mode</strong> &mdash; connects to a local <code>depends serve</code> instance. No signup needed, no limits.</li>
   <li><strong>Remote mode</strong> &mdash; connects to <code>depends.cc</code> using your token. Requires <code>depends signup</code> first.</li>
 </ul>
-<p>Mode is auto-detected: if no token is configured, it uses local mode. If <code>~/.depends/config.yml</code> has a token, it uses remote mode.</p>
+<p>Mode is auto-detected: if no token is configured, it uses local mode. If <code>~/.config/depends/config.yml</code> has a token, it uses remote mode.</p>
 
 <div class="config-block">
   <h3>Claude Code</h3>
@@ -171,7 +171,7 @@ depends serve
 
 <div class="config-block">
   <h3>Remote</h3>
-  <p>Run <code>depends signup</code> once. The token is saved to <code>~/.depends/config.yml</code> and the MCP server switches to remote mode automatically.</p>
+  <p>Run <code>depends signup</code> once. The token is saved to <code>~/.config/depends/config.yml</code> and the MCP server switches to remote mode automatically.</p>
 <pre><code># One-time setup
 depends signup
 

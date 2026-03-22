@@ -7,7 +7,7 @@
 
   <pre style="background: #f4f4f4; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto;">export DEPENDS_TOKEN="<%= it.token %>"</pre>
 
-  <p>Or save it to <code style="background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 13px;">~/.depends/config.yml</code>:</p>
+  <p>Or save it to <code style="background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 13px;">~/.config/depends/config.yml</code>:</p>
 
   <pre style="background: #f4f4f4; padding: 12px; border-radius: 6px; font-size: 13px; overflow-x: auto;">token: "<%= it.token %>"</pre>
 

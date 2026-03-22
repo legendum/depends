@@ -19,7 +19,7 @@ function loadConfig(): Config {
   const envNs = process.env.DEPENDS_NAMESPACE;
   const envUrl = process.env.DEPENDS_API_URL;
 
-  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".depends", "config.yml");
+  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".config", "depends", "config.yml");
   let fileConfig: Config = {};
   if (existsSync(configPath)) {
     try {
@@ -51,7 +51,7 @@ function loadConfig(): Config {
 function getToken(config: Config): string {
   if (!config.token) {
     console.error("Error: No token configured.");
-    console.error("Set DEPENDS_TOKEN or add token to ~/.depends/config.yml");
+    console.error("Set DEPENDS_TOKEN or add token to ~/.config/depends/config.yml");
     process.exit(1);
   }
   return config.token;
@@ -77,7 +77,7 @@ function getNamespace(config: Config, args: string[]): string {
   if (config.default_namespace) return config.default_namespace;
 
   console.error("Error: No namespace specified.");
-  console.error("Use -n <namespace>, set DEPENDS_NAMESPACE, add default_namespace to ~/.depends/config.yml, or have a depends.yml in the current directory.");
+  console.error("Use -n <namespace>, set DEPENDS_NAMESPACE, add default_namespace to ~/.config/depends/config.yml, or have a depends.yml in the current directory.");
   process.exit(1);
 }
 
@@ -197,7 +197,7 @@ async function cmdSignup(config: Config, args: string[]) {
   console.log(data.message);
   console.log(`\nOnce you receive your token, save it:`);
   console.log(`  export DEPENDS_TOKEN=<your-token>`);
-  console.log(`Or add it to ~/.depends/config.yml`);
+  console.log(`Or add it to ~/.config/depends/config.yml`);
 }
 
 async function cmdInit() {
@@ -681,7 +681,7 @@ async function cmdDiff(config: Config, args: string[]) {
 }
 
 async function cmdUpdate() {
-  const srcDir = join(homedir(), ".depends", "src");
+  const srcDir = join(homedir(), ".config", "depends", "src");
   if (!existsSync(srcDir)) {
     console.error("Error: depends not installed via install.sh. Run:");
     console.error("  curl -fsSL https://depends.cc/install.sh | sh");
@@ -881,7 +881,7 @@ ${COLORS.bold}Options:${COLORS.reset}
   --solution <text>       Recommended fix (with set)
 
 ${COLORS.bold}Config:${COLORS.reset}
-  ~/.depends/config.yml   token, default_namespace, api_url
+  ~/.config/depends/config.yml   token, default_namespace, api_url
   DEPENDS_TOKEN           Environment variable for auth token
   DEPENDS_NAMESPACE       Environment variable for namespace`);
 }

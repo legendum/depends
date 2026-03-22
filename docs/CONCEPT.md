@@ -358,9 +358,9 @@ Install via the install script:
 curl -fsSL https://depends.cc/install.sh | sh
 ```
 
-This clones the repo to `~/.depends/src` and links the CLI globally via `bun link`. Update with `depends update`.
+This clones the repo to `~/.config/depends/src` and links the CLI globally via `bun link`. Update with `depends update`.
 
-Configuration in `~/.depends/config.yml`:
+Configuration in `~/.config/depends/config.yml`:
 
 ```yaml
 default_namespace: myproject

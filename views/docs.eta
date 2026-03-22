@@ -57,7 +57,7 @@
   <p>The <code>depends</code> command resolves config from (highest priority first):</p>
   <ol style="padding-left: 1.5rem;">
     <li>Environment variables: <code>DEPENDS_TOKEN</code>, <code>DEPENDS_NAMESPACE</code>, <code>DEPENDS_API_URL</code></li>
-    <li><code>~/.depends/config.yml</code> &mdash; <code>token</code>, <code>default_namespace</code>, <code>api_url</code></li>
+    <li><code>~/.config/depends/config.yml</code> &mdash; <code>token</code>, <code>default_namespace</code>, <code>api_url</code></li>
     <li><code>depends.yml</code> in the current directory (for namespace)</li>
   </ol>
   <p>If no token is configured, the <code>depends</code> command defaults to local mode (<code>dep_local</code> token against <code>localhost:3000</code>).</p>

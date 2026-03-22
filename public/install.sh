@@ -5,7 +5,7 @@ set -e
 # Usage: curl -fsSL https://depends.cc/install.sh | sh
 
 REPO="legendum/depends"
-CLONE_DIR="$HOME/.depends/src"
+CLONE_DIR="$HOME/.config/depends/src"
 
 echo "Installing depends CLI..."
 
@@ -34,7 +34,7 @@ bun install --silent
 bun link --silent
 
 echo ""
-echo "Installed to ~/.depends/src"
+echo "Installed to ~/.config/depends/src"
 echo "CLI linked to $(bun pm bin -g)/depends"
 echo ""
 

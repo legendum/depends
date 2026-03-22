@@ -189,7 +189,7 @@ export function createApp(db: Database) {
             },
             config: {
               env: ["DEPENDS_TOKEN", "DEPENDS_NAMESPACE", "DEPENDS_API_URL"],
-              file: "~/.depends/config.yml (token, default_namespace, api_url)",
+              file: "~/.config/depends/config.yml (token, default_namespace, api_url)",
               local_mode: "No token → uses dep_local against localhost:3000",
             },
           },

@@ -8,7 +8,7 @@ If you installed via the install script:
 depends update
 ```
 
-This runs `git pull` + `bun install` in `~/.depends/src`. Since the CLI is symlinked via `bun link`, updates take effect immediately.
+This runs `git pull` + `bun install` in `~/.config/depends/src`. Since the CLI is symlinked via `bun link`, updates take effect immediately.
 
 Alternatively, re-run the install script:
 

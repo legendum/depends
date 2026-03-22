@@ -19,7 +19,7 @@ When a node's state changes, the "effective state" of all downstream dependents 
 
 ```
 depends serve              Run locally (no signup needed, uses dep_local token)
-depends signup             Get a token (auto-saved to ~/.depends/config.yml)
+depends signup             Get a token (auto-saved to ~/.config/depends/config.yml)
 depends init               Scaffold depends.yml from current directory name
 depends push [--prune]     Upload depends.yml (auto-creates namespace)
 depends pull               Download graph as depends.yml
