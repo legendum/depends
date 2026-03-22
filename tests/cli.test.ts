@@ -8,7 +8,7 @@ import { join } from "path";
 const legendum = require("../src/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
-  linkAgent: () => ({ token: "lt_mock_token" }),
+  linkAccount: () => ({ token: "lt_mock_token" }),
 });
 
 let server: ReturnType<typeof createServer>;

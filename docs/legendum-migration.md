@@ -103,7 +103,7 @@ const legendum = require("./legendum.js");
 const client = legendum.service(LEGENDUM_API_KEY, LEGENDUM_SECRET);
 
 // In the signup handler:
-const { token } = await client.linkAgent(accountKey);
+const { token } = await client.linkAccount(accountKey);
 // Store token alongside dep_... token for charging
 ```
 
