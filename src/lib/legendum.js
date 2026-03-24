@@ -208,7 +208,8 @@ function create(config) {
      * Call this server-side in your callback handler.
      * @param {string} code - The code from the redirect query string
      * @param {string} redirectUri - Must match the original authorize request
-     * @returns {Promise<{ email: string, account_id: string, linked: boolean }>}
+     * @returns {Promise<{ email: string, account_id: string, linked: boolean, legendum_token?: string }>}
+     *   When `linked` is true, `legendum_token` is the opaque account-service token for charge/balance/reserve.
      */
     async exchangeCode(code, redirectUri) {
       return request("POST", "/api/auth/token", { code: code, redirect_uri: redirectUri });

@@ -5,7 +5,7 @@ import { generateToken, hashToken } from "../src/auth";
 import { existsSync, unlinkSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
 import { join } from "path";
 
-const legendum = require("../src/legendum.js");
+const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
   linkAccount: () => ({ token: "lt_mock_token" }),
