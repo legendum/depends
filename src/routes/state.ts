@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
 import { dispatchNotifications } from "../notify/dispatcher";
 
-const legendum = require("../legendum.js");
+const legendum = require("../lib/legendum.js");
 
 const VALID_STATES = ["green", "yellow", "red"] as const;
 

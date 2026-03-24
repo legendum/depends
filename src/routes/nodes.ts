@@ -4,7 +4,7 @@ import { wouldCreateCycle } from "../graph/cycle";
 import { parseTtl } from "../db";
 import { dispatchNotifications } from "../notify/dispatcher";
 
-const legendum = require("../legendum.js");
+const legendum = require("../lib/legendum.js");
 
 interface NodeBody {
   state?: string;

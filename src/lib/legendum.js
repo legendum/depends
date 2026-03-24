@@ -185,7 +185,7 @@ function create(config) {
     /**
      * Build a "Login and link with Legendum" authorize URL (identity + service pairing in one flow).
      * Call after requestLink(); pass the returned pairing code as linkCode.
-     * Redirect the user's browser here (backend must support intent=login_pay).
+     * Redirect the user's browser here (backend must support intent=login_link).
      * @param {object} opts
      * @param {string} opts.redirectUri - Your callback URL (must be registered)
      * @param {string} opts.state - CSRF token (opaque string, returned unchanged)
@@ -199,7 +199,7 @@ function create(config) {
       return base + "/auth/authorize?client_id=" + encodeURIComponent(apiKey)
         + "&redirect_uri=" + encodeURIComponent(opts.redirectUri)
         + "&state=" + encodeURIComponent(opts.state)
-        + "&intent=login_pay"
+        + "&intent=login_link"
         + "&link_code=" + encodeURIComponent(opts.linkCode);
     },
 
@@ -883,7 +883,7 @@ function mockSdk(handlers) {
     authUrl: h.authUrl || function (opts) { return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || ""); },
     authAndLinkUrl: h.authAndLinkUrl || function (opts) {
       return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || "")
-        + "&intent=login_pay&link_code=" + encodeURIComponent((opts && opts.linkCode) || "");
+        + "&intent=login_link&link_code=" + encodeURIComponent((opts && opts.linkCode) || "");
     },
     exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", account_id: "lgd_mock", linked: false }; },
     linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token" }; },

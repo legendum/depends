@@ -6,7 +6,7 @@ import {
 import { sendWebhook, type WebhookPayload } from "./webhook";
 import { sendEmail } from "./email";
 
-const legendum = require("../legendum.js");
+const legendum = require("../lib/legendum.js");
 
 interface NotificationRule {
   ns_id: number;
