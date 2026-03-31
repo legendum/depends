@@ -4,7 +4,7 @@ import { createServer } from "../src/server";
 import { generateToken, hashToken } from "../src/auth";
 import type { Server } from "bun";
 
-const legendum = require("../src/legendum.js");
+const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
   balance: () => ({ balance: 100, held: 0 }),

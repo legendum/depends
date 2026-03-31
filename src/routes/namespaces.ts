@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { generateToken, hashToken } from "../auth";
 import { sendSignupEmail } from "../notify/email";
 
-const legendum = require("../legendum.js");
+const legendum = require("../lib/legendum.js");
 
 export async function handleSignup(
   db: Database,

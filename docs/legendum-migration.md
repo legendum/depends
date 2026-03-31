@@ -46,7 +46,7 @@ The old limits existed to justify subscription tiers. With pay-per-use, the cred
 
 ### Add
 
-- **Legendum SDK** (`src/legendum.js`, already copied)
+- **Legendum SDK** (`src/lib/legendum.js`, already copied)
 - **Legendum service credentials** in env vars (`LEGENDUM_API_KEY`, `LEGENDUM_SECRET`)
 - **Charge call on each billable action** via SDK:
   ```js
@@ -99,7 +99,7 @@ $ depends signup --legendum lak_a1b2c3d4e5f6...
 **SDK usage in depends.cc backend:**
 
 ```js
-const legendum = require("./legendum.js");
+const legendum = require("./lib/legendum.js");
 const client = legendum.service(LEGENDUM_API_KEY, LEGENDUM_SECRET);
 
 // In the signup handler:
