@@ -183,11 +183,33 @@ function create(config) {
     },
 
     /**
+     * Build a "Login and link with Legendum" authorize URL (identity + service pairing in one flow).
+     * Call after requestLink(); pass the returned pairing code as linkCode.
+     * Redirect the user's browser here (backend must support intent=login_link).
+     * @param {object} opts
+     * @param {string} opts.redirectUri - Your callback URL (must be registered)
+     * @param {string} opts.state - CSRF token (opaque string, returned unchanged)
+     * @param {string} opts.linkCode - Pairing code from requestLink()
+     * @returns {string} The authorize URL
+     */
+    authAndLinkUrl(opts) {
+      if (!opts || !opts.linkCode) {
+        throw new Error("Legendum SDK: authAndLinkUrl requires linkCode");
+      }
+      return base + "/auth/authorize?client_id=" + encodeURIComponent(apiKey)
+        + "&redirect_uri=" + encodeURIComponent(opts.redirectUri)
+        + "&state=" + encodeURIComponent(opts.state)
+        + "&intent=login_link"
+        + "&link_code=" + encodeURIComponent(opts.linkCode);
+    },
+
+    /**
      * Exchange a one-time auth code for user info.
      * Call this server-side in your callback handler.
      * @param {string} code - The code from the redirect query string
      * @param {string} redirectUri - Must match the original authorize request
-     * @returns {Promise<{ email: string, account_id: string, linked: boolean }>}
+     * @returns {Promise<{ email: string, account_id: string, linked: boolean, legendum_token?: string }>}
+     *   When `linked` is true, `legendum_token` is the opaque account-service token for charge/balance/reserve.
      */
     async exchangeCode(code, redirectUri) {
       return request("POST", "/api/auth/token", { code: code, redirect_uri: redirectUri });
@@ -406,6 +428,207 @@ function linkWidget(opts) {
 }
 
 /**
+ * Framework-agnostic link controller for reactive UIs (React, Vue, Svelte, etc).
+ * Returns a state object and methods — no DOM or HTML generation.
+ *
+ * @param {object} opts
+ * @param {string} [opts.mountAt]   - Prefix used with middleware() — auto-sets linkUrl, confirmUrl, statusUrl
+ * @param {string} [opts.linkUrl]   - Backend endpoint to start linking (POST)
+ * @param {string} [opts.confirmUrl]- Backend endpoint to poll/confirm (POST)
+ * @param {string} [opts.statusUrl] - Backend endpoint to check linked state (GET)
+ * @param {string} [opts.baseUrl]   - Legendum base URL (default: https://legendum.co.uk)
+ * @param {object} [opts.client]   - SDK client from create() — for startAuthAndLink when not using middleware /auth-link
+ * @param {string} [opts.authLinkUrl] - POST endpoint that returns { url } (default: mountAt + "/auth-link" when mountAt is set)
+ * @param {string} [opts.redirectUri] - Your Login with Legendum callback URL (must be registered) — required for startAuthAndLink
+ * @param {string} [opts.state]     - CSRF token for authorize — required for startAuthAndLink (or pass to startAuthAndLink(state))
+ * @param {function} opts.onChange   - Called with (state) whenever state changes
+ * @returns {{ getState, checkStatus, startLink, startAuthAndLink, accountUrl, destroy }}
+ *
+ * State shape: { status: "loading"|"unlinked"|"linking"|"linked"|"error", balance: number|null, error: string|null }
+ *
+ * Example (React):
+ *   const [state, setState] = useState({ status: "loading", balance: null, error: null });
+ *   const ctrlRef = useRef(null);
+ *   useEffect(() => {
+ *     const ctrl = legendum.linkController({ mountAt: "/legendum", onChange: setState });
+ *     ctrlRef.current = ctrl;
+ *     ctrl.checkStatus();
+ *     return () => ctrl.destroy();
+ *   }, []);
+ *   // Render based on state.status, call ctrlRef.current.startLink() on button click
+ *
+ * Login + link in one flow (redirects the browser to Legendum authorize):
+ *   // With middleware (API key only on server): mountAt auto-sets POST …/auth-link
+ *   const ctrl = legendum.linkController({
+ *     mountAt: "/legendum",
+ *     onChange: setState,
+ *     redirectUri: "https://myapp.com/auth/callback",
+ *     state: csrfToken,
+ *   });
+ *   ctrl.startAuthAndLink();
+ *
+ *   // Or pass a client from create() and use /link + authAndLinkUrl in the browser:
+ *   const ctrl2 = legendum.linkController({ mountAt: "/legendum", onChange: setState, client: legendum.create({ apiKey, secret }), redirectUri, state });
+ */
+function linkController(opts) {
+  var mount = opts.mountAt ? opts.mountAt.replace(/\/+$/, "") : null;
+  var linkUrl = opts.linkUrl || (mount && mount + "/link");
+  /** Default POST …/auth-link when mountAt is set; set to `null` to use opts.client + POST …/link + authAndLinkUrl in the browser instead. */
+  var authLinkUrl = opts.authLinkUrl !== undefined ? opts.authLinkUrl : mount && mount + "/auth-link";
+  var confirmUrl = opts.confirmUrl || (mount && mount + "/confirm");
+  var statusUrl = opts.statusUrl || (mount && mount + "/status") || null;
+  var legUrl = (opts.baseUrl || "https://legendum.co.uk").replace(/\/+$/, "");
+  var sdkClient = opts.client;
+  var onChange = opts.onChange || function () {};
+  var pollTimer = null;
+  var pollTimeout = null;
+  var destroyed = false;
+
+  var state = { status: "loading", balance: null, error: null };
+
+  function setState(patch) {
+    for (var k in patch) state[k] = patch[k];
+    if (!destroyed) onChange({ status: state.status, balance: state.balance, error: state.error });
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (pollTimeout) { clearTimeout(pollTimeout); pollTimeout = null; }
+  }
+
+  function checkStatus() {
+    if (!statusUrl) { setState({ status: "unlinked" }); return; }
+    fetch(statusUrl, { credentials: "include" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.legendum_linked) setState({ status: "linked", balance: typeof d.balance === "number" ? d.balance : null });
+        else setState({ status: "unlinked", balance: null });
+      })
+      .catch(function () { setState({ status: "unlinked", balance: null }); });
+  }
+
+  function startLink() {
+    if (state.status === "linking") return;
+    setState({ status: "linking", error: null });
+    fetch(linkUrl, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok && d.code) {
+          window.open(legUrl + "/link?code=" + encodeURIComponent(d.code), "_blank");
+          poll(d.request_id);
+        } else {
+          setState({ status: "error", error: d.message || "Failed to start linking" });
+          setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+        }
+      })
+      .catch(function () {
+        setState({ status: "error", error: "Connection error" });
+        setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+      });
+  }
+
+  /**
+   * Login and link in one step: request a pairing code, then redirect to Legendum authorize
+   * (same query shape as authAndLinkUrl). Full-page navigation — no polling (user returns via callback).
+   * @param {string} [csrfState] - Overrides opts.state for this call (e.g. fresh token per click)
+   */
+  function startAuthAndLink(csrfState) {
+    if (state.status === "linking") return;
+    var redirectUri = opts.redirectUri;
+    var csrf = csrfState !== undefined ? csrfState : opts.state;
+    if (!redirectUri) {
+      throw new Error("Legendum SDK: linkController startAuthAndLink requires opts.redirectUri");
+    }
+    if (csrf === undefined || csrf === null) {
+      throw new Error("Legendum SDK: linkController startAuthAndLink requires opts.state or startAuthAndLink(state)");
+    }
+    setState({ status: "linking", error: null });
+
+    if (authLinkUrl) {
+      fetch(authLinkUrl, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ redirect_uri: redirectUri, state: String(csrf) }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok && d.url) {
+            window.location.assign(d.url);
+          } else {
+            setState({ status: "error", error: d.message || "Failed to start login and link" });
+            setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+          }
+        })
+        .catch(function () {
+          setState({ status: "error", error: "Connection error" });
+          setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+        });
+      return;
+    }
+
+    if (!sdkClient || typeof sdkClient.authAndLinkUrl !== "function") {
+      throw new Error(
+        "Legendum SDK: linkController startAuthAndLink requires opts.authLinkUrl / mountAt (middleware), or opts.client from legendum.create()"
+      );
+    }
+    if (!linkUrl) {
+      throw new Error("Legendum SDK: linkController startAuthAndLink requires linkUrl or mountAt when using opts.client");
+    }
+    fetch(linkUrl, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: "{}" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.ok && d.code) {
+          var url = sdkClient.authAndLinkUrl({
+            redirectUri: redirectUri,
+            state: String(csrf),
+            linkCode: d.code,
+          });
+          window.location.assign(url);
+        } else {
+          setState({ status: "error", error: d.message || "Failed to start linking" });
+          setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+        }
+      })
+      .catch(function () {
+        setState({ status: "error", error: "Connection error" });
+        setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+      });
+  }
+
+  function poll(requestId) {
+    stopPolling();
+    pollTimer = setInterval(function () {
+      if (destroyed) { stopPolling(); return; }
+      fetch(confirmUrl, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ request_id: requestId }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.ok && d.status === "confirmed") {
+            stopPolling();
+            checkStatus();
+          } else if (d.ok && d.status === "expired") {
+            stopPolling();
+            setState({ status: "error", error: "Code expired. Please try again." });
+            setTimeout(function () { if (!destroyed) setState({ status: "unlinked" }); }, 3000);
+          }
+        })
+        .catch(function () {});
+    }, 3000);
+    pollTimeout = setTimeout(function () { stopPolling(); if (!destroyed) setState({ status: "unlinked" }); }, 600000);
+  }
+
+  return {
+    getState: function () { return { status: state.status, balance: state.balance, error: state.error }; },
+    checkStatus: checkStatus,
+    startLink: startLink,
+    startAuthAndLink: startAuthAndLink,
+    /** URL for the buy credits / account page */
+    accountUrl: legUrl + "/account",
+    destroy: function () { destroyed = true; stopPolling(); }
+  };
+}
+
+/**
  * Create middleware that handles Legendum linking routes.
  * Works with any server that uses Web Standard Request/Response (Bun, Deno, Cloudflare Workers, etc).
  *
@@ -417,9 +640,10 @@ function linkWidget(opts) {
  * @returns {function} async (request, ...extra) => Response|null — returns Response if handled, null if not a Legendum route. Extra args are passed through to callbacks.
  *
  * Routes created:
- *   POST {prefix}/link    — request a pairing code
- *   POST {prefix}/confirm — poll for link confirmation
- *   GET  {prefix}/status  — check linked state and balance
+ *   POST {prefix}/link      — request a pairing code
+ *   POST {prefix}/auth-link — request pairing code + build login-and-link authorize URL (body: { redirect_uri, state })
+ *   POST {prefix}/confirm   — poll for link confirmation
+ *   GET  {prefix}/status    — check linked state and balance
  *
  * Usage with linkWidget:
  *   linkWidget({ mountAt: "/legendum" })
@@ -457,6 +681,28 @@ function middleware(opts) {
         var c = getClient();
         var data = await c.requestLink();
         return jsonResponse({ ok: true, code: data.code, request_id: data.request_id });
+      } catch (err) {
+        return jsonResponse({ ok: false, message: err.message }, 500);
+      }
+    }
+
+    // POST /auth-link — pairing code + authorize URL for login-and-link (server holds API secret)
+    if (route === "/auth-link" && request.method === "POST") {
+      try {
+        var body = await request.json();
+        var redirectUri = body.redirect_uri || body.redirectUri;
+        var st = body.state;
+        if (!redirectUri || st === undefined || st === null) {
+          return jsonResponse({ ok: false, message: "redirect_uri and state are required" }, 400);
+        }
+        var c2 = getClient();
+        var linkData = await c2.requestLink();
+        var authUrl = c2.authAndLinkUrl({
+          redirectUri: redirectUri,
+          state: String(st),
+          linkCode: linkData.code,
+        });
+        return jsonResponse({ ok: true, url: authUrl, request_id: linkData.request_id });
       } catch (err) {
         return jsonResponse({ ok: false, message: err.message }, 500);
       }
@@ -525,6 +771,7 @@ function client(client) {
     pollLink: wrap(c.pollLink),
     waitForLink: wrap(c.waitForLink),
     authUrl: c.authUrl.bind(c),
+    authAndLinkUrl: c.authAndLinkUrl.bind(c),
     exchangeCode: wrap(c.exchangeCode),
   };
 }
@@ -535,8 +782,8 @@ function client(client) {
  * @param {string} accountToken - The account_service token
  * @param {string} description - Description for the batched charge
  * @param {object} opts
- * @param {number} opts.threshold - Flush when accumulated total reaches this amount (required)
- * @param {number} [opts.amount=1] - Default amount per add() call
+ * @param {number} opts.threshold - Flush when accumulated total reaches this amount (required). Same unit as add() (credits; may be fractional).
+ * @param {number} [opts.amount=1] - Default amount per add() call (may be fractional)
  * @param {object} [opts.client] - SDK client from create(). If omitted, uses default (env vars)
  * @returns {Tab}
  *
@@ -544,7 +791,8 @@ function client(client) {
  *   const tab = legendum.tab(token, "AI tokens", { threshold: 100 });
  *   tab.add();      // +1
  *   tab.add(5);     // +5
- *   await tab.close(); // flush remainder
+ *   await tab.settle(); // bill integer credits, keep fractional remainder
+ *   await tab.close(); // bill whole credits only, then close (fractional dust is discarded)
  */
 function tab(accountToken, description, opts) {
   if (!opts || typeof opts.threshold !== "number" || opts.threshold <= 0) {
@@ -559,9 +807,16 @@ function tab(accountToken, description, opts) {
 
   async function flush() {
     if (total <= 0) return;
-    var amount = total;
-    total = 0;
-    await c.charge(accountToken, amount, description);
+    // Snap to 12 decimal places so sums like 10×0.1 don't sit at 0.9999999999999999 (IEEE-754).
+    var snapped = Math.round(total * 1e12) / 1e12;
+    if (snapped <= 0) return;
+    // Bill whole credits only; keep fractional remainder in total (no round-up on each flush).
+    var amount = Math.floor(snapped);
+    if (amount > 0) {
+      await c.charge(accountToken, amount, description);
+    }
+    total = snapped - amount;
+    if (total < 1e-12) total = 0;
   }
 
   return {
@@ -569,8 +824,9 @@ function tab(accountToken, description, opts) {
     get total() { return total; },
 
     /**
-     * Add to the running total. Flushes automatically when threshold is reached.
-     * @param {number} [amount] - Amount to add (defaults to opts.amount, which defaults to 1)
+     * Add credits to the running total (decimals allowed for micro-billing).
+     * Flushes automatically when total reaches threshold; each flush charges floor(total) and keeps remainder.
+     * @param {number} [amount] - Credits to add (defaults to opts.amount, which defaults to 1)
      * @returns {Promise<void>} Resolves after flush if one was triggered
      */
     async add(amount) {
@@ -583,13 +839,26 @@ function tab(accountToken, description, opts) {
     },
 
     /**
-     * Flush any remaining balance and close the tab. No further add() calls allowed.
+     * Bill whole credits from the running total; fractional remainder stays (tab stays open).
+     * @returns {Promise<void>}
+     */
+    async settle() {
+      if (closed) return;
+      if (flushing) await flushing;
+      await flush();
+    },
+
+    /**
+     * Close the tab: flush whole credits and discard any remaining fractional dust.
+     * No further add() calls allowed.
      * @returns {Promise<void>}
      */
     async close() {
       if (closed) return;
       closed = true;
+      if (flushing) await flushing;
       await flush();
+      total = 0;
     },
   };
 }
@@ -612,7 +881,7 @@ function getDefault() {
  * return what the real method would (or throw to simulate errors).
  * Unspecified methods return sensible defaults.
  *
- * @param {object} [handlers] - { charge, balance, reserve, requestLink, pollLink, exchangeCode, authUrl }
+ * @param {object} [handlers] - { charge, balance, reserve, requestLink, pollLink, exchangeCode, authUrl, authAndLinkUrl }
  *
  * Example:
  *   const legendum = require('./legendum.js');
@@ -635,6 +904,10 @@ function mockSdk(handlers) {
     pollLink: h.pollLink || async function () { return { status: "pending" }; },
     waitForLink: h.waitForLink || async function () { return { account_token: "mock_token" }; },
     authUrl: h.authUrl || function (opts) { return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || ""); },
+    authAndLinkUrl: h.authAndLinkUrl || function (opts) {
+      return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || "")
+        + "&intent=login_link&link_code=" + encodeURIComponent((opts && opts.linkCode) || "");
+    },
     exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", account_id: "lgd_mock", linked: false }; },
     linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token" }; },
   };
@@ -661,11 +934,14 @@ module.exports = {
   waitForLink: function () { return getDefault().waitForLink.apply(getDefault(), arguments); },
   tab: tab,
   authUrl: function (opts) { return getDefault().authUrl(opts); },
+  authAndLinkUrl: function (opts) { return getDefault().authAndLinkUrl(opts); },
   exchangeCode: function () { return getDefault().exchangeCode.apply(getDefault(), arguments); },
   linkAccount: function () { return getDefault().linkAccount.apply(getDefault(), arguments); },
   button: button,
   linkWidget: linkWidget,
+  linkController: linkController,
   middleware: middleware,
   mock: mockSdk,
   unmock: unmockSdk,
+  version: "1.0.0",
 };
