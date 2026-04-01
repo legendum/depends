@@ -42,7 +42,7 @@
  *
  * Testing:
  *   legendum.mock({
- *     charge: (token, amount, desc) => ({ transaction_id: 1, balance: 50 }),
+ *     charge: (token, amount, desc) => ({ email: "mock@test.com", transaction_id: 1, balance: 50 }),
  *   });
  *   // isConfigured() returns true, all methods use mock handlers
  *   legendum.unmock();
@@ -94,7 +94,7 @@ function create(config) {
      * @param {number} amount - Credits to charge (positive integer)
      * @param {string} description - Human-readable description
      * @param {object} [opts] - Optional: { key, meta }
-     * @returns {Promise<{ transaction_id: number, balance: number }>}
+     * @returns {Promise<{ email: string, transaction_id: number, balance: number }>}
      */
     async charge(accountToken, amount, description, opts) {
       var body = {
@@ -133,6 +133,7 @@ function create(config) {
         /**
          * Settle the reservation (finalise the charge).
          * @param {number} [settleAmount] - Amount to settle (defaults to reserved amount)
+         * @returns {Promise<{ email: string, transaction_id: number, balance: number }>}
          */
         async settle(settleAmount) {
           return request("POST", "/api/settle", {
@@ -218,7 +219,7 @@ function create(config) {
     /**
      * Link a Legendum account to this service.
      * The user provides their account key (lak_...), and this creates
-     * the account-service link, returning a token for charging and the account email.
+     * the account-service link, returning a token for charging.
      * @param {string} accountKey - The account key (lak_...)
      * @returns {Promise<{ token: string, email: string }>}
      */
@@ -869,7 +870,7 @@ function getDefault() {
  * Example:
  *   const legendum = require('./legendum.js');
  *   legendum.mock({
- *     charge: (token, amount, desc) => ({ transaction_id: 1, balance: 50 }),
+ *     charge: (token, amount, desc) => ({ email: "mock@test.com", transaction_id: 1, balance: 50 }),
  *     balance: (token) => ({ balance: 100, held: 0 }),
  *   });
  *   // ... run tests ...
@@ -878,7 +879,7 @@ function getDefault() {
 function mockSdk(handlers) {
   var h = handlers || {};
   _mockClient = {
-    charge: h.charge || async function () { return { transaction_id: 1, balance: 0 }; },
+    charge: h.charge || async function () { return { email: "mock@test.com", transaction_id: 1, balance: 0 }; },
     balance: h.balance || async function () { return { balance: 0, held: 0 }; },
     reserve: h.reserve || async function (_t, amount) {
       return { id: 1, amount: amount, settle: async function () {}, release: async function () {} };
@@ -892,7 +893,7 @@ function mockSdk(handlers) {
         + "&intent=login_link&link_code=" + encodeURIComponent((opts && opts.linkCode) || "");
     },
     exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", linked: false }; },
-    linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token" }; },
+    linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token", email: "mock@test.com" }; },
   };
 }
 
