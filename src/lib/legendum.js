@@ -251,6 +251,16 @@ function create(config) {
       err2.code = "timeout";
       throw err2;
     },
+
+    /**
+     * Batched micro-charges (same as top-level {@link tab}, but uses this client for `charge`).
+     * @param {string} accountToken
+     * @param {string} description
+     * @param {object} opts - { threshold, amount?, client? } — `client` defaults to this service client
+     */
+    tab(accountToken, description, opts) {
+      return tab(accountToken, description, Object.assign({}, opts || {}, { client: this }));
+    },
   };
 }
 
@@ -642,6 +652,7 @@ function linkController(opts) {
  * @param {string} [opts.prefix]       - URL prefix for routes (default: "/legendum")
  * @param {function} opts.getToken     - async (request, ...extra) => string|null — return the stored account_token for the current user, or null
  * @param {function} opts.setToken     - async (request, accountToken, ...extra) => void — save the account_token for the current user
+ * @param {function} [opts.clearToken] - async (request, ...extra) => void — optional; called when balance() returns token_not_found (e.g. clear stored token). Same extra args as getToken/setToken.
  * @param {object} [opts.client]       - SDK client from create(). If omitted, uses default (env vars)
  * @returns {function} async (request, ...extra) => Response|null — returns Response if handled, null if not a Legendum route. Extra args are passed through to callbacks.
  *
@@ -659,6 +670,7 @@ function middleware(opts) {
   var prefix = (opts.prefix || "/legendum").replace(/\/+$/, "");
   var getToken = opts.getToken;
   var setToken = opts.setToken;
+  var clearToken = opts.clearToken || async function () {};
   var client = opts.client || null;
 
   function getClient() {
@@ -741,6 +753,11 @@ function middleware(opts) {
         return jsonResponse({ legendum_linked: true, balance: data.balance });
       } catch (err) {
         if (err.code === "token_not_found") {
+          try {
+            await clearToken.apply(null, [request].concat(extra));
+          } catch (_e) {
+            /* still return unlinked — clearing storage is best-effort */
+          }
           return jsonResponse({ legendum_linked: false });
         }
         return jsonResponse({ legendum_linked: true });
@@ -755,7 +772,7 @@ function middleware(opts) {
  * Wrap a client so that every method returns { ok, data?, error?, code? }
  * instead of throwing on failure.
  * @param {object} [client] - A client from create(). If omitted, uses default (env vars)
- * @returns {object} Safe client with the same methods but non-throwing
+ * @returns {object} Safe client: async methods return `{ ok, data?, error?, code? }`; `tab` is sync and returns `{ ok, data?, error?, code? }`; URL helpers return strings unchanged.
  */
 function client(client) {
   var c = client || getDefault();
@@ -763,6 +780,16 @@ function client(client) {
     return async function () {
       try {
         var data = await fn.apply(c, arguments);
+        return { ok: true, data: data };
+      } catch (err) {
+        return { ok: false, error: err.message, code: err.code };
+      }
+    };
+  }
+  function wrapSync(fn) {
+    return function () {
+      try {
+        var data = fn.apply(c, arguments);
         return { ok: true, data: data };
       } catch (err) {
         return { ok: false, error: err.message, code: err.code };
@@ -779,6 +806,12 @@ function client(client) {
     authUrl: c.authUrl.bind(c),
     authAndLinkUrl: c.authAndLinkUrl.bind(c),
     exchangeCode: wrap(c.exchangeCode),
+    linkAccount: wrap(c.linkAccount),
+    tab: wrapSync(function (accountToken, description, opts) {
+      return typeof c.tab === "function"
+        ? c.tab(accountToken, description, opts)
+        : tab(accountToken, description, Object.assign({}, opts || {}, { client: c }));
+    }),
   };
 }
 
@@ -878,7 +911,7 @@ function getDefault() {
  */
 function mockSdk(handlers) {
   var h = handlers || {};
-  _mockClient = {
+  var m = {
     charge: h.charge || async function () { return { email: "mock@test.com", transaction_id: 1, balance: 0 }; },
     balance: h.balance || async function () { return { balance: 0, held: 0 }; },
     reserve: h.reserve || async function (_t, amount) {
@@ -895,6 +928,10 @@ function mockSdk(handlers) {
     exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", linked: false }; },
     linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token", email: "mock@test.com" }; },
   };
+  m.tab = h.tab || function (accountToken, description, opts) {
+    return tab(accountToken, description, Object.assign({}, opts || {}, { client: m }));
+  };
+  _mockClient = m;
 }
 
 /**
