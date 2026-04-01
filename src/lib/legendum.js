@@ -208,7 +208,7 @@ function create(config) {
      * Call this server-side in your callback handler.
      * @param {string} code - The code from the redirect query string
      * @param {string} redirectUri - Must match the original authorize request
-     * @returns {Promise<{ email: string, account_id: string, linked: boolean, legendum_token?: string }>}
+     * @returns {Promise<{ email: string, linked: boolean, legendum_token?: string }>}
      *   When `linked` is true, `legendum_token` is the opaque account-service token for charge/balance/reserve.
      */
     async exchangeCode(code, redirectUri) {
@@ -218,9 +218,9 @@ function create(config) {
     /**
      * Link a Legendum account to this service.
      * The user provides their account key (lak_...), and this creates
-     * the account-service link, returning a token for charging.
+     * the account-service link, returning a token for charging and the account email.
      * @param {string} accountKey - The account key (lak_...)
-     * @returns {Promise<{ token: string }>}
+     * @returns {Promise<{ token: string, email: string }>}
      */
     async linkAccount(accountKey) {
       return request("POST", "/api/agent/link-service", { api_key: apiKey, secret: secret, account_key: accountKey });
@@ -296,6 +296,11 @@ function account(accountKey, config) {
   }
 
   return {
+    /** Get account identity (verified email). */
+    async whoami() {
+      return request("GET", "/api/agent/whoami");
+    },
+
     /** Get account balance and linked services. */
     async balance() {
       return request("GET", "/api/agent/balance");
@@ -782,8 +787,8 @@ function client(client) {
  * @param {string} accountToken - The account_service token
  * @param {string} description - Description for the batched charge
  * @param {object} opts
- * @param {number} opts.threshold - Flush when accumulated total reaches this amount (required). Same unit as add() (credits; may be fractional).
- * @param {number} [opts.amount=1] - Default amount per add() call (may be fractional)
+ * @param {number} opts.threshold - Flush when accumulated total reaches this amount (required)
+ * @param {number} [opts.amount=1] - Default amount per add() call
  * @param {object} [opts.client] - SDK client from create(). If omitted, uses default (env vars)
  * @returns {Tab}
  *
@@ -791,8 +796,7 @@ function client(client) {
  *   const tab = legendum.tab(token, "AI tokens", { threshold: 100 });
  *   tab.add();      // +1
  *   tab.add(5);     // +5
- *   await tab.settle(); // bill integer credits, keep fractional remainder
- *   await tab.close(); // bill whole credits only, then close (fractional dust is discarded)
+ *   await tab.close(); // flush remainder
  */
 function tab(accountToken, description, opts) {
   if (!opts || typeof opts.threshold !== "number" || opts.threshold <= 0) {
@@ -807,16 +811,9 @@ function tab(accountToken, description, opts) {
 
   async function flush() {
     if (total <= 0) return;
-    // Snap to 12 decimal places so sums like 10×0.1 don't sit at 0.9999999999999999 (IEEE-754).
-    var snapped = Math.round(total * 1e12) / 1e12;
-    if (snapped <= 0) return;
-    // Bill whole credits only; keep fractional remainder in total (no round-up on each flush).
-    var amount = Math.floor(snapped);
-    if (amount > 0) {
-      await c.charge(accountToken, amount, description);
-    }
-    total = snapped - amount;
-    if (total < 1e-12) total = 0;
+    var amount = total;
+    total = 0;
+    await c.charge(accountToken, amount, description);
   }
 
   return {
@@ -824,9 +821,8 @@ function tab(accountToken, description, opts) {
     get total() { return total; },
 
     /**
-     * Add credits to the running total (decimals allowed for micro-billing).
-     * Flushes automatically when total reaches threshold; each flush charges floor(total) and keeps remainder.
-     * @param {number} [amount] - Credits to add (defaults to opts.amount, which defaults to 1)
+     * Add to the running total. Flushes automatically when threshold is reached.
+     * @param {number} [amount] - Amount to add (defaults to opts.amount, which defaults to 1)
      * @returns {Promise<void>} Resolves after flush if one was triggered
      */
     async add(amount) {
@@ -839,26 +835,13 @@ function tab(accountToken, description, opts) {
     },
 
     /**
-     * Bill whole credits from the running total; fractional remainder stays (tab stays open).
-     * @returns {Promise<void>}
-     */
-    async settle() {
-      if (closed) return;
-      if (flushing) await flushing;
-      await flush();
-    },
-
-    /**
-     * Close the tab: flush whole credits and discard any remaining fractional dust.
-     * No further add() calls allowed.
+     * Flush any remaining balance and close the tab. No further add() calls allowed.
      * @returns {Promise<void>}
      */
     async close() {
       if (closed) return;
       closed = true;
-      if (flushing) await flushing;
       await flush();
-      total = 0;
     },
   };
 }
@@ -908,7 +891,7 @@ function mockSdk(handlers) {
       return "http://mock.legendum.test/auth/authorize?state=" + (opts && opts.state || "")
         + "&intent=login_link&link_code=" + encodeURIComponent((opts && opts.linkCode) || "");
     },
-    exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", account_id: "lgd_mock", linked: false }; },
+    exchangeCode: h.exchangeCode || async function () { return { email: "mock@test.com", linked: false }; },
     linkAccount: h.linkAccount || async function () { return { token: "mock_legendum_token" }; },
   };
 }
