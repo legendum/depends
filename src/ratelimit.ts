@@ -9,8 +9,8 @@ interface Window {
 
 const windows = new Map<string, Window>();
 
-const WINDOW_MS = 60_000;       // 1 minute
-const MAX_REQUESTS = 120;       // per window
+const WINDOW_MS = 60_000; // 1 minute
+const MAX_REQUESTS = 120; // per window
 
 /** Prune stale entries every 5 minutes */
 setInterval(() => {
@@ -40,7 +40,7 @@ export function rateLimit(ip: string): Response | null {
       {
         status: 429,
         headers: { "Retry-After": String(Math.ceil((w.resetAt - now) / 1000)) },
-      }
+      },
     );
   }
 

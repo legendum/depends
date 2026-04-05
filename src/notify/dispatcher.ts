@@ -1,10 +1,7 @@
-import { Database } from "bun:sqlite";
-import {
-  computeEffectiveState,
-  getDownstreamNodes,
-} from "../graph/effective";
-import { sendWebhook, type WebhookPayload } from "./webhook";
+import type { Database } from "bun:sqlite";
+import { computeEffectiveState, getDownstreamNodes } from "../graph/effective";
 import { sendEmail } from "./email";
+import { sendWebhook, type WebhookPayload } from "./webhook";
 
 const legendum = require("../lib/legendum.js");
 
@@ -34,7 +31,7 @@ function ruleMatchesNode(rule: NotificationRule, nodeId: string): boolean {
 async function chargeNotification(
   legendumToken: string | null,
   amount: number,
-  description: string
+  description: string,
 ): Promise<void> {
   if (!legendumToken) return;
   try {
@@ -54,14 +51,23 @@ export function dispatchNotifications(
   previousEffectiveState: string | null,
   reason?: string | null,
   solution?: string | null,
-  legendumToken?: string | null
+  legendumToken?: string | null,
 ): void {
   const newEffectiveState = computeEffectiveState(db, nsId, nodeId);
 
   db.query(
     `INSERT INTO events (ns_id, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason, solution)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(nsId, nodeId, previousState, newState, previousEffectiveState, newEffectiveState, reason ?? null, solution ?? null);
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    nsId,
+    nodeId,
+    previousState,
+    newState,
+    previousEffectiveState,
+    newEffectiveState,
+    reason ?? null,
+    solution ?? null,
+  );
 
   const affectedNodes: {
     id: string;
@@ -85,7 +91,7 @@ export function dispatchNotifications(
       .query(
         `SELECT new_effective_state FROM events
          WHERE ns_id = ? AND node_id = ?
-         ORDER BY id DESC LIMIT 1`
+         ORDER BY id DESC LIMIT 1`,
       )
       .get(nsId, downId) as { new_effective_state: string } | null;
 
@@ -98,7 +104,7 @@ export function dispatchNotifications(
 
       db.query(
         `INSERT INTO events (ns_id, node_id, previous_state, new_state, previous_effective_state, new_effective_state, reason, solution)
-         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)`
+         VALUES (?, ?, ?, ?, ?, ?, NULL, NULL)`,
       ).run(nsId, downId, downNode.state, downNode.state, prevEff, newEff);
 
       affectedNodes.push({
@@ -112,20 +118,28 @@ export function dispatchNotifications(
   if (affectedNodes.length === 0) return;
 
   const rules = db
-    .query("SELECT * FROM notification_rules WHERE ns_id = ? AND suppressed = 0")
+    .query(
+      "SELECT * FROM notification_rules WHERE ns_id = ? AND suppressed = 0",
+    )
     .all(nsId) as NotificationRule[];
 
   const lt = legendumToken ?? null;
 
   for (const affected of affectedNodes) {
     for (const rule of rules) {
-      if (!ruleMatchesNode(rule, affected.id) || !ruleMatchesState(rule, affected.newEffective)) {
+      if (
+        !ruleMatchesNode(rule, affected.id) ||
+        !ruleMatchesState(rule, affected.newEffective)
+      ) {
         continue;
       }
 
       const nodeData = db
         .query("SELECT reason, solution FROM nodes WHERE ns_id = ? AND id = ?")
-        .get(nsId, affected.id) as { reason: string | null; solution: string | null } | null;
+        .get(nsId, affected.id) as {
+        reason: string | null;
+        solution: string | null;
+      } | null;
 
       const baseUrl = process.env.BASE_URL ?? "https://depends.cc";
       const payload: WebhookPayload = {
@@ -139,7 +153,9 @@ export function dispatchNotifications(
         solution: nodeData?.solution ?? null,
         triggered_rule: rule.id,
         timestamp: new Date().toISOString(),
-        ...(rule.ack_token ? { ack_url: `${baseUrl}/v1/ack/${rule.ack_token}` } : {}),
+        ...(rule.ack_token
+          ? { ack_url: `${baseUrl}/v1/ack/${rule.ack_token}` }
+          : {}),
       };
 
       if (rule.url) {
@@ -153,11 +169,11 @@ export function dispatchNotifications(
 
       if (rule.ack) {
         db.query(
-          "UPDATE notification_rules SET suppressed = 1, last_fired_at = datetime('now') WHERE ns_id = ? AND id = ?"
+          "UPDATE notification_rules SET suppressed = 1, last_fired_at = datetime('now') WHERE ns_id = ? AND id = ?",
         ).run(nsId, rule.id);
       } else {
         db.query(
-          "UPDATE notification_rules SET last_fired_at = datetime('now') WHERE ns_id = ? AND id = ?"
+          "UPDATE notification_rules SET last_fired_at = datetime('now') WHERE ns_id = ? AND id = ?",
         ).run(nsId, rule.id);
       }
     }

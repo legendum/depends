@@ -1,10 +1,10 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 export function wouldCreateCycle(
   db: Database,
   nsId: number,
   fromNode: string,
-  toNode: string
+  toNode: string,
 ): boolean {
   if (fromNode === toNode) return true;
 
@@ -12,7 +12,8 @@ export function wouldCreateCycle(
   const queue = [toNode];
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (current === undefined) continue;
     if (current === fromNode) return true;
     if (visited.has(current)) continue;
     visited.add(current);

@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 const STATE_PRIORITY: Record<string, number> = {
   green: 0,
@@ -18,7 +18,7 @@ function resolveNodeState(node: {
   if (!node.ttl || !node.last_state_write) return node.state;
   if (node.state !== "green") return node.state;
 
-  const lastWrite = new Date(node.last_state_write + "Z").getTime();
+  const lastWrite = new Date(`${node.last_state_write}Z`).getTime();
   const now = Date.now();
   const elapsed = (now - lastWrite) / 1000;
 
@@ -29,11 +29,17 @@ function resolveNodeState(node: {
 export function computeEffectiveState(
   db: Database,
   nsId: number,
-  nodeId: string
+  nodeId: string,
 ): string {
   const node = db
-    .query("SELECT state, ttl, last_state_write FROM nodes WHERE ns_id = ? AND id = ?")
-    .get(nsId, nodeId) as { state: string; ttl: number | null; last_state_write: string | null } | null;
+    .query(
+      "SELECT state, ttl, last_state_write FROM nodes WHERE ns_id = ? AND id = ?",
+    )
+    .get(nsId, nodeId) as {
+    state: string;
+    ttl: number | null;
+    last_state_write: string | null;
+  } | null;
 
   if (!node) throw new Error(`Node not found: ${nodeId}`);
 
@@ -42,7 +48,8 @@ export function computeEffectiveState(
   const queue = [nodeId];
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (current === undefined) continue;
     if (visited.has(current)) continue;
     visited.add(current);
 
@@ -52,8 +59,14 @@ export function computeEffectiveState(
 
     for (const dep of deps) {
       const depNode = db
-        .query("SELECT state, ttl, last_state_write FROM nodes WHERE ns_id = ? AND id = ?")
-        .get(nsId, dep.to_node) as { state: string; ttl: number | null; last_state_write: string | null } | null;
+        .query(
+          "SELECT state, ttl, last_state_write FROM nodes WHERE ns_id = ? AND id = ?",
+        )
+        .get(nsId, dep.to_node) as {
+        state: string;
+        ttl: number | null;
+        last_state_write: string | null;
+      } | null;
 
       if (depNode) {
         worst = worstState(worst, resolveNodeState(depNode));
@@ -70,14 +83,15 @@ export function computeEffectiveState(
 export function getDownstreamNodes(
   db: Database,
   nsId: number,
-  nodeId: string
+  nodeId: string,
 ): string[] {
   const downstream: string[] = [];
   const visited = new Set<string>();
   const queue = [nodeId];
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (current === undefined) continue;
     if (visited.has(current)) continue;
     visited.add(current);
 
@@ -99,14 +113,15 @@ export function getDownstreamNodes(
 export function getUpstreamNodes(
   db: Database,
   nsId: number,
-  nodeId: string
+  nodeId: string,
 ): string[] {
   const upstream: string[] = [];
   const visited = new Set<string>();
   const queue = [nodeId];
 
   while (queue.length > 0) {
-    const current = queue.shift()!;
+    const current = queue.shift();
+    if (current === undefined) continue;
     if (visited.has(current)) continue;
     visited.add(current);
 

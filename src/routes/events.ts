@@ -1,14 +1,17 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 export function handleGetEvents(
   db: Database,
   nsId: number,
   nodeId: string | null,
-  url: URL
+  url: URL,
 ): Response {
   const since = url.searchParams.get("since");
   const limitParam = url.searchParams.get("limit");
-  const limit = Math.min(Math.max(parseInt(limitParam ?? "100", 10) || 100, 1), 1000);
+  const limit = Math.min(
+    Math.max(parseInt(limitParam ?? "100", 10) || 100, 1),
+    1000,
+  );
 
   let query: string;
   const params: unknown[] = [nsId];

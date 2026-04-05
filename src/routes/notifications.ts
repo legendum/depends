@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 interface NotificationBody {
   id: string;
@@ -14,38 +14,63 @@ export async function handlePutNotification(
   db: Database,
   nsId: number,
   req: Request,
-  tokenId: number
+  tokenId: number,
 ): Promise<Response> {
   const body = (await req.json()) as NotificationBody;
 
   if (!body.id || typeof body.id !== "string") {
-    return Response.json({ error: "Missing or invalid rule ID." }, { status: 400 });
+    return Response.json(
+      { error: "Missing or invalid rule ID." },
+      { status: 400 },
+    );
   }
 
   if (!body.url && !body.email) {
-    return Response.json({ error: "Rule must have either 'url' or 'email'." }, { status: 400 });
+    return Response.json(
+      { error: "Rule must have either 'url' or 'email'." },
+      { status: 400 },
+    );
   }
 
   let emailAddr: string | null = null;
   if (body.email) {
-    const owner = db.query("SELECT email FROM tokens WHERE id = ?").get(tokenId) as { email: string | null } | null;
+    const owner = db
+      .query("SELECT email FROM tokens WHERE id = ?")
+      .get(tokenId) as { email: string | null } | null;
     if (!owner?.email) {
-      return Response.json({ error: "No email address on file for this token." }, { status: 400 });
+      return Response.json(
+        { error: "No email address on file for this token." },
+        { status: 400 },
+      );
     }
     emailAddr = owner.email;
   }
 
-  const onState = Array.isArray(body.on) ? body.on.join(",") : body.on ?? "red";
+  const onState = Array.isArray(body.on)
+    ? body.on.join(",")
+    : (body.on ?? "red");
 
   const ackToken = body.ack
-    ? Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64url")
+    ? Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString(
+        "base64url",
+      )
     : null;
 
   db.query(
     `INSERT OR REPLACE INTO notification_rules
      (ns_id, id, watch, on_state, url, email, secret, ack, ack_token, suppressed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
-  ).run(nsId, body.id, body.watch ?? "*", onState, body.url ?? null, emailAddr, body.secret ?? null, body.ack ? 1 : 0, ackToken);
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+  ).run(
+    nsId,
+    body.id,
+    body.watch ?? "*",
+    onState,
+    body.url ?? null,
+    emailAddr,
+    body.secret ?? null,
+    body.ack ? 1 : 0,
+    ackToken,
+  );
 
   return Response.json({ ok: true }, { status: 200 });
 }
@@ -53,7 +78,7 @@ export async function handlePutNotification(
 export function handleListNotifications(
   db: Database,
   nsId: number,
-  namespace: string
+  namespace: string,
 ): Response {
   const rules = db
     .query("SELECT * FROM notification_rules WHERE ns_id = ? ORDER BY id")
@@ -65,7 +90,7 @@ export function handleListNotifications(
 export function handleDeleteNotification(
   db: Database,
   nsId: number,
-  ruleId: string
+  ruleId: string,
 ): Response {
   const existing = db
     .query("SELECT id FROM notification_rules WHERE ns_id = ? AND id = ?")
@@ -75,14 +100,17 @@ export function handleDeleteNotification(
     return Response.json({ error: "Rule not found." }, { status: 404 });
   }
 
-  db.query("DELETE FROM notification_rules WHERE ns_id = ? AND id = ?").run(nsId, ruleId);
+  db.query("DELETE FROM notification_rules WHERE ns_id = ? AND id = ?").run(
+    nsId,
+    ruleId,
+  );
   return new Response(null, { status: 204 });
 }
 
 export function handleAckNotification(
   db: Database,
   nsId: number,
-  ruleId: string
+  ruleId: string,
 ): Response {
   const existing = db
     .query("SELECT id FROM notification_rules WHERE ns_id = ? AND id = ?")
@@ -92,7 +120,9 @@ export function handleAckNotification(
     return Response.json({ error: "Rule not found." }, { status: 404 });
   }
 
-  db.query("UPDATE notification_rules SET suppressed = 0 WHERE ns_id = ? AND id = ?").run(nsId, ruleId);
+  db.query(
+    "UPDATE notification_rules SET suppressed = 0 WHERE ns_id = ? AND id = ?",
+  ).run(nsId, ruleId);
   return Response.json({ ok: true });
 }
 

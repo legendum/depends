@@ -1,27 +1,33 @@
-import { describe, test, expect, beforeEach } from "bun:test";
+import type { Database } from "bun:sqlite";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { createTestDb } from "../../src/db";
 import { dispatchNotifications } from "../../src/notify/dispatcher";
-import type { Database } from "bun:sqlite";
 
 let db: Database;
 let nsId: number;
 
 function setup() {
   db = createTestDb();
-  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES ('h')").run();
-  const { lastInsertRowid } = db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(tokenId);
+  const { lastInsertRowid: tokenId } = db
+    .query("INSERT INTO tokens (token_hash) VALUES ('h')")
+    .run();
+  const { lastInsertRowid } = db
+    .query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)")
+    .run(tokenId);
   nsId = Number(lastInsertRowid);
 }
 
 function addNode(id: string, state: string = "green") {
-  db.query(
-    "INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, ?)"
-  ).run(nsId, id, state);
+  db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, ?)").run(
+    nsId,
+    id,
+    state,
+  );
 }
 
 function addEdge(from: string, to: string) {
   db.query(
-    "INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)"
+    "INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)",
   ).run(nsId, from, to);
 }
 
@@ -31,16 +37,18 @@ function addRule(
     watch?: string;
     on?: string;
     ack?: boolean;
-  } = {}
+  } = {},
 ) {
   db.query(
     `INSERT INTO notification_rules (ns_id, id, watch, on_state, url, ack)
-     VALUES (?, ?, ?, ?, 'https://example.com/hook', ?)`
+     VALUES (?, ?, ?, ?, 'https://example.com/hook', ?)`,
   ).run(nsId, id, opts.watch ?? "*", opts.on ?? "red", opts.ack ? 1 : 0);
 }
 
 function getEvents() {
-  return db.query("SELECT * FROM events WHERE ns_id = ? ORDER BY id").all(nsId) as {
+  return db
+    .query("SELECT * FROM events WHERE ns_id = ? ORDER BY id")
+    .all(nsId) as {
     node_id: string;
     previous_state: string | null;
     new_state: string;
@@ -54,7 +62,9 @@ describe("dispatcher", () => {
 
   test("records event on state change", () => {
     addNode("a", "green");
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "a", "green", "red", "green");
 
     const events = getEvents();
@@ -71,7 +81,9 @@ describe("dispatcher", () => {
     addEdge("b", "a"); // b depends on a
 
     // Change a to red
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "a", "green", "red", "green");
 
     const events = getEvents();
@@ -86,11 +98,15 @@ describe("dispatcher", () => {
     addNode("a", "green");
     addRule("alert", { ack: true });
 
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "a", "green", "red", "green");
 
     const rule = db
-      .query("SELECT suppressed FROM notification_rules WHERE ns_id = ? AND id = 'alert'")
+      .query(
+        "SELECT suppressed FROM notification_rules WHERE ns_id = ? AND id = 'alert'",
+      )
       .get(nsId) as { suppressed: number };
     expect(rule.suppressed).toBe(1);
   });
@@ -101,22 +117,30 @@ describe("dispatcher", () => {
     addRule("alert", { ack: true });
 
     // First change: a goes red
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "a", "green", "red", "green");
 
     // Rule is now suppressed
     const rule1 = db
-      .query("SELECT suppressed, last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'alert'")
+      .query(
+        "SELECT suppressed, last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'alert'",
+      )
       .get(nsId) as { suppressed: number; last_fired_at: string };
     expect(rule1.suppressed).toBe(1);
     const firstFiredAt = rule1.last_fired_at;
 
     // Second change: b goes red — rule should NOT fire
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "b", "green", "red", "green");
 
     const rule2 = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'alert'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'alert'",
+      )
       .get(nsId) as { last_fired_at: string };
     expect(rule2.last_fired_at).toBe(firstFiredAt); // unchanged
   });
@@ -127,11 +151,15 @@ describe("dispatcher", () => {
     addRule("only-a", { watch: "a" });
 
     // Change b to red — should not trigger rule watching "a"
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "b", "green", "red", "green");
 
     const rule = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'only-a'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'only-a'",
+      )
       .get(nsId) as { last_fired_at: string | null };
     expect(rule.last_fired_at).toBeNull();
   });
@@ -141,11 +169,15 @@ describe("dispatcher", () => {
     addRule("recovery", { on: "green" });
 
     // Change a from red to green
-    db.query("UPDATE nodes SET state = 'green' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query(
+      "UPDATE nodes SET state = 'green' WHERE ns_id = ? AND id = 'a'",
+    ).run(nsId);
     dispatchNotifications(db, nsId, "ns", "a", "red", "green", "red");
 
     const rule = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'recovery'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'recovery'",
+      )
       .get(nsId) as { last_fired_at: string | null };
     expect(rule.last_fired_at).not.toBeNull();
   });
@@ -154,11 +186,15 @@ describe("dispatcher", () => {
     addNode("a", "green");
     addRule("any-change", { on: "*" });
 
-    db.query("UPDATE nodes SET state = 'yellow' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query(
+      "UPDATE nodes SET state = 'yellow' WHERE ns_id = ? AND id = 'a'",
+    ).run(nsId);
     dispatchNotifications(db, nsId, "ns", "a", "green", "yellow", "green");
 
     const rule = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'any-change'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'any-change'",
+      )
       .get(nsId) as { last_fired_at: string | null };
     expect(rule.last_fired_at).not.toBeNull();
   });
@@ -168,20 +204,28 @@ describe("dispatcher", () => {
     addRule("red-and-green", { on: "red,green" });
 
     // Go red
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'a'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "a", "green", "red", "green");
 
     const rule1 = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'red-and-green'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'red-and-green'",
+      )
       .get(nsId) as { last_fired_at: string | null };
     expect(rule1.last_fired_at).not.toBeNull();
 
     // Go back to green
-    db.query("UPDATE nodes SET state = 'green' WHERE ns_id = ? AND id = 'a'").run(nsId);
+    db.query(
+      "UPDATE nodes SET state = 'green' WHERE ns_id = ? AND id = 'a'",
+    ).run(nsId);
     dispatchNotifications(db, nsId, "ns", "a", "red", "green", "red");
 
     const rule2 = db
-      .query("SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'red-and-green'")
+      .query(
+        "SELECT last_fired_at FROM notification_rules WHERE ns_id = ? AND id = 'red-and-green'",
+      )
       .get(nsId) as { last_fired_at: string | null };
     // last_fired_at should have been updated again
     expect(rule2.last_fired_at).not.toBeNull();
@@ -197,7 +241,9 @@ describe("dispatcher", () => {
     addRule("alert");
 
     // First: b goes red — a becomes effectively red (first time)
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'b'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "b", "green", "red", "green");
 
     // a should now have an event (effective went green -> red)
@@ -205,7 +251,9 @@ describe("dispatcher", () => {
     expect(eventsAfterB.length).toBe(1);
 
     // Now: c also goes red — a's effective state is STILL red (unchanged)
-    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'c'").run(nsId);
+    db.query("UPDATE nodes SET state = 'red' WHERE ns_id = ? AND id = 'c'").run(
+      nsId,
+    );
     dispatchNotifications(db, nsId, "ns", "c", "green", "red", "green");
 
     const eventsAfterC = getEvents().filter((e) => e.node_id === "a");

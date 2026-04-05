@@ -1,9 +1,24 @@
-import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "bun:test";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { join } from "node:path";
+import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
-import { generateToken, hashToken } from "../src/auth";
-import { existsSync, unlinkSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "fs";
-import { join } from "path";
 
 const legendum = require("../src/lib/legendum.js");
 legendum.mock({
@@ -27,30 +42,53 @@ beforeAll(async () => {
   // Seed a test token directly
   token = generateToken();
   const hash = await hashToken(token);
-  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "cli-test@example.com");
+  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(
+    hash,
+    "cli-test@example.com",
+  );
 
   // Create namespace
   await fetch(`${baseUrl}/namespaces`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ id: NS }),
   });
 
   // Create some nodes for testing
   await fetch(`${baseUrl}/nodes/${NS}/database`, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ label: "PostgreSQL", state: "green" }),
   });
   await fetch(`${baseUrl}/nodes/${NS}/api-server`, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ label: "API Server", state: "green", depends_on: ["database"] }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      label: "API Server",
+      state: "green",
+      depends_on: ["database"],
+    }),
   });
   await fetch(`${baseUrl}/nodes/${NS}/worker`, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ label: "Worker", state: "green", depends_on: ["api-server"] }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      label: "Worker",
+      state: "green",
+      depends_on: ["api-server"],
+    }),
   });
 
   // Create tmp dir
@@ -65,21 +103,24 @@ afterAll(() => {
 // Helper to run CLI command
 async function cli(
   args: string[],
-  opts: { cwd?: string; env?: Record<string, string> } = {}
+  opts: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = Bun.spawn(["bun", "run", join(import.meta.dir, "../src/cli.ts"), ...args], {
-    cwd: opts.cwd ?? tmpDir,
-    env: {
-      ...process.env,
-      DEPENDS_TOKEN: token,
-      DEPENDS_NAMESPACE: NS,
-      DEPENDS_API_URL: baseUrl,
-      DEPENDS_CONFIG: join(tmpDir, "config.yml"),
-      ...opts.env,
+  const proc = Bun.spawn(
+    ["bun", "run", join(import.meta.dir, "../src/cli.ts"), ...args],
+    {
+      cwd: opts.cwd ?? tmpDir,
+      env: {
+        ...process.env,
+        DEPENDS_TOKEN: token,
+        DEPENDS_NAMESPACE: NS,
+        DEPENDS_API_URL: baseUrl,
+        DEPENDS_CONFIG: join(tmpDir, "config.yml"),
+        ...opts.env,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
     },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  );
 
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -117,7 +158,11 @@ describe("depends CLI", () => {
 
   describe("signup", () => {
     test("signup with email and account key shows confirmation", async () => {
-      const { stdout, exitCode } = await cli(["signup", "newsignup@example.com", "lak_testkey123"]);
+      const { stdout, exitCode } = await cli([
+        "signup",
+        "newsignup@example.com",
+        "lak_testkey123",
+      ]);
       expect(exitCode).toBe(0);
       expect(stdout).toContain("emailed");
     });
@@ -223,9 +268,12 @@ describe("depends CLI", () => {
     });
 
     test("-n flag overrides namespace", async () => {
-      const { stderr, exitCode } = await cli(["status", "-n", "nonexistent-ns"], {
-        env: { DEPENDS_NAMESPACE: "" },
-      });
+      const { stderr: _stderr, exitCode } = await cli(
+        ["status", "-n", "nonexistent-ns"],
+        {
+          env: { DEPENDS_NAMESPACE: "" },
+        },
+      );
       // Should fail auth since namespace doesn't exist under this token
       expect(exitCode).toBe(1);
     });
@@ -253,7 +301,11 @@ describe("depends CLI", () => {
     });
 
     test("set with namespace/node syntax", async () => {
-      const { stdout, exitCode } = await cli(["set", `${NS}/database`, "yellow"]);
+      const { stdout, exitCode } = await cli([
+        "set",
+        `${NS}/database`,
+        "yellow",
+      ]);
       expect(exitCode).toBe(0);
       expect(stdout).toContain("database");
       expect(stdout).toContain("yellow");
@@ -266,10 +318,14 @@ describe("depends CLI", () => {
     });
 
     test("set with --reason and --solution", async () => {
-      const { stdout, exitCode } = await cli([
-        "set", "database", "red",
-        "--reason", "connection pool exhausted",
-        "--solution", "Restart the connection pool",
+      const { stdout: _stdout, exitCode } = await cli([
+        "set",
+        "database",
+        "red",
+        "--reason",
+        "connection pool exhausted",
+        "--solution",
+        "Restart the connection pool",
       ]);
       expect(exitCode).toBe(0);
 
@@ -328,9 +384,11 @@ describe("depends CLI", () => {
     test("valid YAML passes", async () => {
       writeFileSync(
         join(validateDir, "depends.yml"),
-        `namespace: test\nnodes:\n  a:\n    depends_on: [b]\n  b: {}\n`
+        `namespace: test\nnodes:\n  a:\n    depends_on: [b]\n  b: {}\n`,
       );
-      const { stdout, exitCode } = await cli(["validate"], { cwd: validateDir });
+      const { stdout, exitCode } = await cli(["validate"], {
+        cwd: validateDir,
+      });
       expect(exitCode).toBe(0);
       expect(stdout).toContain("valid");
       expect(stdout).toContain("2 nodes");
@@ -339,9 +397,11 @@ describe("depends CLI", () => {
     test("detects cycles", async () => {
       writeFileSync(
         join(validateDir, "depends.yml"),
-        `namespace: test\nnodes:\n  a:\n    depends_on: [b]\n  b:\n    depends_on: [a]\n`
+        `namespace: test\nnodes:\n  a:\n    depends_on: [b]\n  b:\n    depends_on: [a]\n`,
       );
-      const { stderr, exitCode } = await cli(["validate"], { cwd: validateDir });
+      const { stderr, exitCode } = await cli(["validate"], {
+        cwd: validateDir,
+      });
       expect(exitCode).toBe(1);
       expect(stderr).toContain("Cycle");
     });
@@ -349,9 +409,11 @@ describe("depends CLI", () => {
     test("warns on missing refs", async () => {
       writeFileSync(
         join(validateDir, "depends.yml"),
-        `namespace: test\nnodes:\n  a:\n    depends_on: [external]\n`
+        `namespace: test\nnodes:\n  a:\n    depends_on: [external]\n`,
       );
-      const { stdout, exitCode } = await cli(["validate"], { cwd: validateDir });
+      const { stdout, exitCode } = await cli(["validate"], {
+        cwd: validateDir,
+      });
       expect(exitCode).toBe(0);
       expect(stdout).toContain("Warning");
       expect(stdout).toContain("external");
@@ -359,7 +421,9 @@ describe("depends CLI", () => {
 
     test("missing namespace is an error", async () => {
       writeFileSync(join(validateDir, "depends.yml"), `nodes:\n  a: {}\n`);
-      const { stderr, exitCode } = await cli(["validate"], { cwd: validateDir });
+      const { stderr, exitCode } = await cli(["validate"], {
+        cwd: validateDir,
+      });
       expect(exitCode).toBe(1);
       expect(stderr).toContain("namespace");
     });
@@ -388,7 +452,7 @@ describe("depends CLI", () => {
     test("pushes depends.yml to server (auto-creates namespace)", async () => {
       writeFileSync(
         join(pushDir, "depends.yml"),
-        `namespace: ${NS}\nnodes:\n  push-test-node:\n    label: Push Test\n`
+        `namespace: ${NS}\nnodes:\n  push-test-node:\n    label: Push Test\n`,
       );
 
       const { stdout, exitCode } = await cli(["push"], { cwd: pushDir });
@@ -451,7 +515,7 @@ describe("depends CLI", () => {
     test("shows new nodes", async () => {
       writeFileSync(
         join(diffDir, "depends.yml"),
-        `namespace: ${NS}\nnodes:\n  database:\n    label: PostgreSQL\n  brand-new-node:\n    label: New\n    depends_on:\n      - database\n`
+        `namespace: ${NS}\nnodes:\n  database:\n    label: PostgreSQL\n  brand-new-node:\n    label: New\n    depends_on:\n      - database\n`,
       );
 
       const { stdout, exitCode } = await cli(["diff"], { cwd: diffDir });

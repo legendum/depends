@@ -1,5 +1,10 @@
-import { describe, test, expect } from "bun:test";
-import { generateToken, hashToken, verifyToken, verifyTokenOnly } from "../src/auth";
+import { describe, expect, test } from "bun:test";
+import {
+  generateToken,
+  hashToken,
+  verifyToken,
+  verifyTokenOnly,
+} from "../src/auth";
 import { createTestDb } from "../src/db";
 
 describe("auth", () => {
@@ -32,8 +37,13 @@ describe("auth", () => {
     const db = createTestDb();
     const token = "dep_test123";
     const hash = await hashToken(token);
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
+    const { lastInsertRowid: tokenId } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(
+      "myns",
+      tokenId,
+    );
 
     const result = await verifyToken(db, "myns", token);
     expect(result).not.toBeNull();
@@ -47,8 +57,15 @@ describe("auth", () => {
     const db = createTestDb();
     const token = "dep_linked";
     const hash = await hashToken(token);
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash, legendum_token) VALUES (?, 'lt_abc')").run(hash);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
+    const { lastInsertRowid: tokenId } = db
+      .query(
+        "INSERT INTO tokens (token_hash, legendum_token) VALUES (?, 'lt_abc')",
+      )
+      .run(hash);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(
+      "myns",
+      tokenId,
+    );
 
     const result = await verifyToken(db, "myns", token);
     expect(result).not.toBeNull();
@@ -59,8 +76,13 @@ describe("auth", () => {
   test("verifyToken returns null for wrong token", async () => {
     const db = createTestDb();
     const hash = await hashToken("dep_correct");
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
+    const { lastInsertRowid: tokenId } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(
+      "myns",
+      tokenId,
+    );
 
     expect(await verifyToken(db, "myns", "dep_wrong")).toBeNull();
     db.close();
@@ -69,8 +91,13 @@ describe("auth", () => {
   test("verifyToken returns null for correct token but wrong namespace", async () => {
     const db = createTestDb();
     const hash = await hashToken("dep_correct2");
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run("myns", tokenId);
+    const { lastInsertRowid: tokenId } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(
+      "myns",
+      tokenId,
+    );
 
     expect(await verifyToken(db, "other-ns", "dep_correct2")).toBeNull();
     db.close();
@@ -86,7 +113,9 @@ describe("auth", () => {
     const db = createTestDb();
     const token = "dep_only";
     const hash = await hashToken(token);
-    const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash);
+    const { lastInsertRowid: tokenId } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash);
 
     const result = await verifyTokenOnly(db, token);
     expect(result).not.toBeNull();
@@ -107,10 +136,18 @@ describe("auth", () => {
     const token2 = "dep_user2";
     const hash1 = await hashToken(token1);
     const hash2 = await hashToken(token2);
-    const { lastInsertRowid: tokId1 } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash1);
-    const { lastInsertRowid: tokId2 } = db.query("INSERT INTO tokens (token_hash) VALUES (?)").run(hash2);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tokId1);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tokId2);
+    const { lastInsertRowid: tokId1 } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash1);
+    const { lastInsertRowid: tokId2 } = db
+      .query("INSERT INTO tokens (token_hash) VALUES (?)")
+      .run(hash2);
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+      tokId1,
+    );
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+      tokId2,
+    );
 
     const r1 = await verifyToken(db, "api", token1);
     const r2 = await verifyToken(db, "api", token2);

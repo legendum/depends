@@ -19,29 +19,44 @@ interface GraphData {
   edges: GraphEdge[];
 }
 
-const STATE_COLORS: Record<string, { fill: string; stroke: string; text: string }> = {
-  green:  { fill: "#64d177", stroke: "#4caf50", text: "#1b5e20" },
+const STATE_COLORS: Record<
+  string,
+  { fill: string; stroke: string; text: string }
+> = {
+  green: { fill: "#64d177", stroke: "#4caf50", text: "#1b5e20" },
   yellow: { fill: "#ff9800", stroke: "#f57c00", text: "#4e2c00" },
-  red:    { fill: "#f44336", stroke: "#d32f2f", text: "#fff" },
+  red: { fill: "#f44336", stroke: "#d32f2f", text: "#fff" },
 };
 
 const NODE_PADDING_X = 16;
 const NODE_PADDING_Y = 10;
-const CHAR_WIDTH = 7.5;  // approximate for 13px sans-serif
+const CHAR_WIDTH = 7.5; // approximate for 13px sans-serif
 const LINE_HEIGHT = 16;
 const MIN_NODE_WIDTH = 80;
 
 function escapeXml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function measureNode(node: GraphNode): { width: number; height: number; lines: string[] } {
+function measureNode(node: GraphNode): {
+  width: number;
+  height: number;
+  lines: string[];
+} {
   const lines: string[] = [node.id];
   if (node.label) lines.push(node.label);
-  if (node.state !== node.effective_state) lines.push(`effective: ${node.effective_state}`);
+  if (node.state !== node.effective_state)
+    lines.push(`effective: ${node.effective_state}`);
 
   const maxLen = Math.max(...lines.map((l) => l.length));
-  const width = Math.max(MIN_NODE_WIDTH, maxLen * CHAR_WIDTH + NODE_PADDING_X * 2);
+  const width = Math.max(
+    MIN_NODE_WIDTH,
+    maxLen * CHAR_WIDTH + NODE_PADDING_X * 2,
+  );
   const height = lines.length * LINE_HEIGHT + NODE_PADDING_Y * 2;
 
   return { width, height, lines };
@@ -63,10 +78,19 @@ function arrowMarker(): string {
 
 export function renderSvg(graph: GraphData): string {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "BT", nodesep: 40, ranksep: 60, marginx: 20, marginy: 20 });
+  g.setGraph({
+    rankdir: "BT",
+    nodesep: 40,
+    ranksep: 60,
+    marginx: 20,
+    marginy: 20,
+  });
   g.setDefaultEdgeLabel(() => ({}));
 
-  const nodeMeta = new Map<string, { width: number; height: number; lines: string[] }>();
+  const nodeMeta = new Map<
+    string,
+    { width: number; height: number; lines: string[] }
+  >();
 
   for (const node of graph.nodes) {
     const m = measureNode(node);
@@ -93,7 +117,7 @@ export function renderSvg(graph: GraphData): string {
     const edgeData = g.edge(e) as { points: Array<{ x: number; y: number }> };
     if (edgeData?.points) {
       edgeSvgs.push(
-        `<path d="${edgePath(edgeData.points)}" fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>`
+        `<path d="${edgePath(edgeData.points)}" fill="none" stroke="#666" stroke-width="1.5" marker-end="url(#arrow)"/>`,
       );
     }
   }
@@ -101,7 +125,12 @@ export function renderSvg(graph: GraphData): string {
   // Render nodes
   const nodeSvgs: string[] = [];
   for (const nodeId of g.nodes()) {
-    const pos = g.node(nodeId) as { x: number; y: number; width: number; height: number };
+    const pos = g.node(nodeId) as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
     const meta = nodeMeta.get(nodeId);
     const node = nodeById.get(nodeId);
     if (!pos || !meta || !node) continue;

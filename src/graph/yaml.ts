@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import yaml from "js-yaml";
 import { wouldCreateCycle } from "./cycle";
 
@@ -28,7 +28,7 @@ interface YamlSpec {
 
 export function parseYaml(content: string): YamlSpec {
   const spec = yaml.load(content) as YamlSpec;
-  if (!spec || !spec.namespace) {
+  if (!spec?.namespace) {
     throw new Error("YAML must contain a 'namespace' field");
   }
   return spec;
@@ -40,7 +40,7 @@ export async function importYaml(
   spec: YamlSpec,
   prune: boolean = false,
   tokenId?: number,
-  legendumToken?: string | null
+  legendumToken?: string | null,
 ): Promise<void> {
   // Count new nodes before starting the transaction so we can charge up front
   if (legendumToken && spec.nodes) {
@@ -53,11 +53,17 @@ export async function importYaml(
     }
     let newCount = 0;
     for (const id of nodeIds) {
-      const existing = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, id);
+      const existing = db
+        .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+        .get(nsId, id);
       if (!existing) newCount++;
     }
     if (newCount > 0) {
-      await legendum.charge(legendumToken, newCount * 1, `graph import: ${newCount} new node${newCount > 1 ? "s" : ""}`);
+      await legendum.charge(
+        legendumToken,
+        newCount * 1,
+        `graph import: ${newCount} new node${newCount > 1 ? "s" : ""}`,
+      );
     }
   }
 
@@ -90,13 +96,13 @@ export async function importYaml(
                 meta = COALESCE(?, meta),
                 default_state = COALESCE(?, default_state),
                 updated_at = datetime('now')
-              WHERE ns_id = ? AND id = ?`
+              WHERE ns_id = ? AND id = ?`,
             ).run(
               node.label ?? null,
               node.meta ? JSON.stringify(node.meta) : null,
               node.default_state ?? null,
               nsId,
-              id
+              id,
             );
           }
         } else {
@@ -104,30 +110,35 @@ export async function importYaml(
           const initState = nodeSpec.default_state ?? "yellow";
           db.query(
             `INSERT INTO nodes (ns_id, id, label, state, default_state, meta)
-             VALUES (?, ?, ?, ?, ?, ?)`
+             VALUES (?, ?, ?, ?, ?, ?)`,
           ).run(
             nsId,
             id,
             nodeSpec.label ?? null,
             initState,
             nodeSpec.default_state ?? null,
-            nodeSpec.meta ? JSON.stringify(nodeSpec.meta) : null
+            nodeSpec.meta ? JSON.stringify(nodeSpec.meta) : null,
           );
         }
       }
 
       for (const id of Object.keys(spec.nodes)) {
-        db.query("DELETE FROM edges WHERE ns_id = ? AND from_node = ?").run(nsId, id);
+        db.query("DELETE FROM edges WHERE ns_id = ? AND from_node = ?").run(
+          nsId,
+          id,
+        );
       }
 
       for (const [id, node] of Object.entries(spec.nodes)) {
         if (node.depends_on) {
           for (const dep of node.depends_on) {
             if (wouldCreateCycle(db, nsId, id, dep)) {
-              throw new Error(`Cycle detected: ${id} -> ${dep} would create a cycle`);
+              throw new Error(
+                `Cycle detected: ${id} -> ${dep} would create a cycle`,
+              );
             }
             db.query(
-              "INSERT OR IGNORE INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)"
+              "INSERT OR IGNORE INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)",
             ).run(nsId, id, dep);
           }
         }
@@ -136,25 +147,31 @@ export async function importYaml(
 
     if (spec.notifications) {
       let ownerEmail: string | null = null;
-      const hasEmailRule = Object.values(spec.notifications).some((r) => r.email);
+      const hasEmailRule = Object.values(spec.notifications).some(
+        (r) => r.email,
+      );
       if (hasEmailRule && tokenId) {
-        const owner = db.query("SELECT email FROM tokens WHERE id = ?").get(tokenId) as { email: string | null } | null;
+        const owner = db
+          .query("SELECT email FROM tokens WHERE id = ?")
+          .get(tokenId) as { email: string | null } | null;
         ownerEmail = owner?.email ?? null;
       }
 
       for (const [id, rule] of Object.entries(spec.notifications)) {
         if (rule.email && !ownerEmail) {
-          throw new Error(`Notification "${id}" has email: true but no email address is on file for this token.`);
+          throw new Error(
+            `Notification "${id}" has email: true but no email address is on file for this token.`,
+          );
         }
 
         const onState = Array.isArray(rule.on)
           ? rule.on.join(",")
-          : rule.on ?? "red";
+          : (rule.on ?? "red");
 
         db.query(
           `INSERT OR REPLACE INTO notification_rules
            (ns_id, id, watch, on_state, url, email, secret, ack)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(
           nsId,
           id,
@@ -163,7 +180,7 @@ export async function importYaml(
           rule.url ?? null,
           rule.email ? ownerEmail : null,
           rule.secret ?? null,
-          rule.ack ? 1 : 0
+          rule.ack ? 1 : 0,
         );
       }
     }
@@ -175,7 +192,10 @@ export async function importYaml(
 
       for (const row of allNodes) {
         if (!nodeIds.has(row.id)) {
-          db.query("DELETE FROM nodes WHERE ns_id = ? AND id = ?").run(nsId, row.id);
+          db.query("DELETE FROM nodes WHERE ns_id = ? AND id = ?").run(
+            nsId,
+            row.id,
+          );
         }
       }
     }
@@ -187,10 +207,19 @@ export async function importYaml(
   }
 }
 
-export function exportYaml(db: Database, nsId: number, namespace: string): string {
+export function exportYaml(
+  db: Database,
+  nsId: number,
+  namespace: string,
+): string {
   const nodes = db
     .query("SELECT * FROM nodes WHERE ns_id = ? ORDER BY id")
-    .all(nsId) as { id: string; label: string | null; default_state: string | null; meta: string | null }[];
+    .all(nsId) as {
+    id: string;
+    label: string | null;
+    default_state: string | null;
+    meta: string | null;
+  }[];
 
   const edges = db
     .query("SELECT * FROM edges WHERE ns_id = ? ORDER BY from_node, to_node")
@@ -199,8 +228,13 @@ export function exportYaml(db: Database, nsId: number, namespace: string): strin
   const rules = db
     .query("SELECT * FROM notification_rules WHERE ns_id = ? ORDER BY id")
     .all(nsId) as {
-    id: string; watch: string; on_state: string;
-    url: string | null; email: string | null; secret: string | null; ack: number;
+    id: string;
+    watch: string;
+    on_state: string;
+    url: string | null;
+    email: string | null;
+    secret: string | null;
+    ack: number;
   }[];
 
   const edgeMap = new Map<string, string[]>();
@@ -236,7 +270,8 @@ export function exportYaml(db: Database, nsId: number, namespace: string): strin
 
   const spec: Record<string, unknown> = { namespace };
   if (Object.keys(nodesObj).length > 0) spec.nodes = nodesObj;
-  if (Object.keys(notificationsObj).length > 0) spec.notifications = notificationsObj;
+  if (Object.keys(notificationsObj).length > 0)
+    spec.notifications = notificationsObj;
 
   return yaml.dump(spec, { lineWidth: -1 });
 }

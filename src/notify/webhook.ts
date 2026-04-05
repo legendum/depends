@@ -14,19 +14,19 @@ export interface WebhookPayload {
 
 export async function computeSignature(
   body: string,
-  secret: string
+  secret: string,
 ): Promise<string> {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"]
+    ["sign"],
   );
   const sig = await crypto.subtle.sign(
     "HMAC",
     key,
-    new TextEncoder().encode(body)
+    new TextEncoder().encode(body),
   );
   return Buffer.from(sig).toString("hex");
 }
@@ -35,7 +35,7 @@ export async function sendWebhook(
   url: string,
   payload: WebhookPayload,
   secret?: string | null,
-  maxRetries: number = 3
+  maxRetries: number = 3,
 ): Promise<boolean> {
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = {
@@ -56,7 +56,7 @@ export async function sendWebhook(
 
     if (attempt < maxRetries - 1) {
       // Exponential backoff: 1s, 4s
-      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt * 2)));
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt * 2)));
     }
   }
 

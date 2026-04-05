@@ -1,8 +1,7 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
 import { createServer } from "../src/server";
-import { generateToken, hashToken } from "../src/auth";
-import type { Server } from "bun";
 
 const legendum = require("../src/lib/legendum.js");
 legendum.mock({
@@ -25,7 +24,10 @@ beforeAll(async () => {
   // Seed a test token directly
   token = generateToken();
   const hash = await hashToken(token);
-  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "test@example.com");
+  db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(
+    hash,
+    "test@example.com",
+  );
 });
 
 afterAll(() => {
@@ -40,11 +42,11 @@ async function api(
     auth?: boolean;
     contentType?: string;
     headers?: Record<string, string>;
-  } = {}
+  } = {},
 ) {
   const headers: Record<string, string> = { ...opts.headers };
   if (opts.auth !== false && token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
   if (opts.body && opts.contentType !== "text/plain") {
     if (opts.contentType) {
@@ -69,17 +71,29 @@ async function api(
 
 describe("signup and namespaces", () => {
   test("signup requires email", async () => {
-    const res = await api("/signup", { method: "POST", auth: false, body: { account_key: "lak_test123" } });
+    const res = await api("/signup", {
+      method: "POST",
+      auth: false,
+      body: { account_key: "lak_test123" },
+    });
     expect(res.status).toBe(400);
   });
 
   test("signup requires account_key", async () => {
-    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com" } });
+    const res = await api("/signup", {
+      method: "POST",
+      auth: false,
+      body: { email: "signup@example.com" },
+    });
     expect(res.status).toBe(400);
   });
 
   test("signup with email and account_key succeeds", async () => {
-    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com", account_key: "lak_test123" } });
+    const res = await api("/signup", {
+      method: "POST",
+      auth: false,
+      body: { email: "signup@example.com", account_key: "lak_test123" },
+    });
     expect(res.status).toBe(201);
     const data = await res.json();
     expect(data.email).toBe("signup@example.com");
@@ -87,7 +101,11 @@ describe("signup and namespaces", () => {
   });
 
   test("duplicate email rejected", async () => {
-    const res = await api("/signup", { method: "POST", auth: false, body: { email: "signup@example.com", account_key: "lak_test123" } });
+    const res = await api("/signup", {
+      method: "POST",
+      auth: false,
+      body: { email: "signup@example.com", account_key: "lak_test123" },
+    });
     expect(res.status).toBe(409);
   });
 
@@ -260,7 +278,10 @@ describe("nodes", () => {
   });
 
   test("delete a node", async () => {
-    await api(`/nodes/${NS}/redis`, { method: "PUT", body: { state: "green" } });
+    await api(`/nodes/${NS}/redis`, {
+      method: "PUT",
+      body: { state: "green" },
+    });
     const del = await api(`/nodes/${NS}/redis`, { method: "DELETE" });
     expect(del.status).toBe(204);
     const get = await api(`/nodes/${NS}/redis`);
@@ -320,7 +341,11 @@ describe("default_state", () => {
     // Recreate aggregator with default_state green
     await api(`/nodes/${NS}/aggregator`, {
       method: "PUT",
-      body: { state: "green", default_state: "green", depends_on: ["database"] },
+      body: {
+        state: "green",
+        default_state: "green",
+        depends_on: ["database"],
+      },
     });
     // Set database to red
     await api(`/state/${NS}/database/red`, { method: "PUT" });
@@ -383,15 +408,11 @@ describe("state shorthand", () => {
 
   test("same state is a no-op (no event)", async () => {
     // Set to green again (already green)
-    const beforeEvents = await (
-      await api(`/events/${NS}/database`)
-    ).json();
+    const beforeEvents = await (await api(`/events/${NS}/database`)).json();
 
     await api(`/state/${NS}/database/green`, { method: "PUT" });
 
-    const afterEvents = await (
-      await api(`/events/${NS}/database`)
-    ).json();
+    const afterEvents = await (await api(`/events/${NS}/database`)).json();
 
     expect(afterEvents.events.length).toBe(beforeEvents.events.length);
   });
@@ -458,7 +479,9 @@ describe("reason", () => {
 
     const graphRes = await api(`/graph/${NS}?state=red`);
     const graphData = await graphRes.json();
-    const dbNode = graphData.nodes.find((n: { id: string }) => n.id === "database");
+    const dbNode = graphData.nodes.find(
+      (n: { id: string }) => n.id === "database",
+    );
     expect(dbNode?.solution).toBe("Run df -h and clear logs");
   });
 });
@@ -668,7 +691,9 @@ describe("notifications", () => {
 
     const get = await api(`/notifications/${NS}`);
     const data = await get.json();
-    expect(data.find((r: { id: string }) => r.id === "test-hook")).toBeUndefined();
+    expect(
+      data.find((r: { id: string }) => r.id === "test-hook"),
+    ).toBeUndefined();
   });
 
   test("delete non-existent rule returns 404", async () => {
@@ -699,23 +724,35 @@ describe("status page /ns/:namespace", () => {
   test("setup: create token and namespace with nodes", async () => {
     nsToken = generateToken();
     const hash = await hashToken(nsToken);
-    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(hash, "status@example.com");
+    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(
+      hash,
+      "status@example.com",
+    );
 
     const res = await fetch(`${baseUrl.replace("/v1", "")}/v1/namespaces`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${nsToken}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ id: nsName }),
     });
     expect(res.status).toBe(201);
 
     await fetch(`${baseUrl}/nodes/${nsName}/db`, {
       method: "PUT",
-      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${nsToken}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ state: "green", label: "Database" }),
     });
     await fetch(`${baseUrl}/nodes/${nsName}/api`, {
       method: "PUT",
-      headers: { Authorization: `Bearer ${nsToken}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${nsToken}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({ state: "red", label: "API", depends_on: ["db"] }),
     });
   });
@@ -728,14 +765,18 @@ describe("status page /ns/:namespace", () => {
 
   test("returns 401 with wrong credentials", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}`, {
-      headers: { Authorization: "Basic " + btoa("status@example.com:dep_wrong") },
+      headers: {
+        Authorization: `Basic ${btoa("status@example.com:dep_wrong")}`,
+      },
     });
     expect(res.status).toBe(401);
   });
 
   test("text response is valid plain text (not [object Promise])", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+      headers: {
+        Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+      },
     });
     expect(res.status).toBe(200);
     const text = await res.text();
@@ -747,7 +788,9 @@ describe("status page /ns/:namespace", () => {
 
   test("json response returns valid JSON array", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.json`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+      headers: {
+        Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+      },
     });
     expect(res.status).toBe(200);
     const data = await res.json();
@@ -759,7 +802,9 @@ describe("status page /ns/:namespace", () => {
 
   test("yaml response returns valid YAML graph", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.yaml`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+      headers: {
+        Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+      },
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/plain");
@@ -771,7 +816,9 @@ describe("status page /ns/:namespace", () => {
 
   test("svg response returns valid SVG", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}.svg`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+      headers: {
+        Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+      },
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/svg+xml");
@@ -783,7 +830,9 @@ describe("status page /ns/:namespace", () => {
 
   test("single node text response", async () => {
     const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}/db`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
+      headers: {
+        Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+      },
     });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/plain");
@@ -793,9 +842,14 @@ describe("status page /ns/:namespace", () => {
   });
 
   test("single node json response", async () => {
-    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}/api.json`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
-    });
+    const res = await fetch(
+      `${baseUrl.replace("/v1", "")}/ns/${nsName}/api.json`,
+      {
+        headers: {
+          Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+        },
+      },
+    );
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.id).toBe("api");
@@ -804,9 +858,14 @@ describe("status page /ns/:namespace", () => {
   });
 
   test("single node 404 for missing node", async () => {
-    const res = await fetch(`${baseUrl.replace("/v1", "")}/ns/${nsName}/nonexistent`, {
-      headers: { Authorization: "Basic " + btoa(`status@example.com:${nsToken}`) },
-    });
+    const res = await fetch(
+      `${baseUrl.replace("/v1", "")}/ns/${nsName}/nonexistent`,
+      {
+        headers: {
+          Authorization: `Basic ${btoa(`status@example.com:${nsToken}`)}`,
+        },
+      },
+    );
     expect(res.status).toBe(404);
   });
 });
@@ -816,7 +875,10 @@ describe("namespace deletion", () => {
     // Create a token directly
     const delToken = generateToken();
     const delHash = await hashToken(delToken);
-    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(delHash, "delete@example.com");
+    db.query("INSERT INTO tokens (token_hash, email) VALUES (?, ?)").run(
+      delHash,
+      "delete@example.com",
+    );
 
     const createRes = await fetch(`${baseUrl}/namespaces`, {
       method: "POST",

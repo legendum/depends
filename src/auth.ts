@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 
 export interface AuthResult {
   tokenId: number;
@@ -30,11 +30,13 @@ export async function verifyToken(
   db: Database,
   namespace: string,
   token: string,
-  isLocal: boolean = false
+  isLocal: boolean = false,
 ): Promise<AuthResult | null> {
   if (isLocal && token === LOCAL_TOKEN) {
     // Resolve ns_id for local token
-    const ns = db.query("SELECT ns_id FROM namespaces WHERE token_id = 0 AND id = ?").get(namespace) as { ns_id: number } | null;
+    const ns = db
+      .query("SELECT ns_id FROM namespaces WHERE token_id = 0 AND id = ?")
+      .get(namespace) as { ns_id: number } | null;
     return { tokenId: 0, nsId: ns?.ns_id ?? 0, legendumToken: null };
   }
   const hash = await hashToken(token);
@@ -42,11 +44,19 @@ export async function verifyToken(
     .query(
       `SELECT t.id, t.legendum_token, n.ns_id FROM tokens t
        JOIN namespaces n ON n.token_id = t.id
-       WHERE t.token_hash = ? AND n.id = ?`
+       WHERE t.token_hash = ? AND n.id = ?`,
     )
-    .get(hash, namespace) as { id: number; legendum_token: string | null; ns_id: number } | null;
+    .get(hash, namespace) as {
+    id: number;
+    legendum_token: string | null;
+    ns_id: number;
+  } | null;
   if (!row) return null;
-  return { tokenId: row.id, nsId: row.ns_id, legendumToken: row.legendum_token };
+  return {
+    tokenId: row.id,
+    nsId: row.ns_id,
+    legendumToken: row.legendum_token,
+  };
 }
 
 /**
@@ -57,7 +67,7 @@ export async function verifyToken(
 export async function verifyTokenOnly(
   db: Database,
   token: string,
-  isLocal: boolean = false
+  isLocal: boolean = false,
 ): Promise<{ tokenId: number; legendumToken: string | null } | null> {
   if (isLocal && token === LOCAL_TOKEN) {
     return { tokenId: 0, legendumToken: null };

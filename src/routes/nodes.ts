@@ -1,7 +1,7 @@
-import { Database } from "bun:sqlite";
-import { computeEffectiveState } from "../graph/effective";
-import { wouldCreateCycle } from "../graph/cycle";
+import type { Database } from "bun:sqlite";
 import { parseTtl } from "../db";
+import { wouldCreateCycle } from "../graph/cycle";
+import { computeEffectiveState } from "../graph/effective";
 import { dispatchNotifications } from "../notify/dispatcher";
 
 const legendum = require("../lib/legendum.js");
@@ -20,7 +20,7 @@ interface NodeBody {
 async function chargeCredits(
   legendumToken: string | null,
   amount: number,
-  description: string
+  description: string,
 ): Promise<Response | null> {
   if (!legendumToken) return null; // local mode, no charge
   try {
@@ -30,7 +30,7 @@ async function chargeCredits(
     if (err.code === "insufficient_funds") {
       return Response.json(
         { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
-        { status: 402 }
+        { status: 402 },
       );
     }
     throw err;
@@ -43,10 +43,13 @@ export async function handlePutNode(
   namespace: string,
   nodeId: string,
   req: Request,
-  legendumToken: string | null
+  legendumToken: string | null,
 ): Promise<Response> {
   if (nodeId.includes("/")) {
-    return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
+    return Response.json(
+      { error: "Node ID must not contain '/'." },
+      { status: 400 },
+    );
   }
 
   const body = (await req.json()) as NodeBody;
@@ -56,16 +59,30 @@ export async function handlePutNode(
     .get(nsId, nodeId) as { state: string } | null;
 
   if (!existing) {
-    const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${nodeId}`);
+    const chargeErr = await chargeCredits(
+      legendumToken,
+      1,
+      `node create: ${namespace}/${nodeId}`,
+    );
     if (chargeErr) return chargeErr;
   }
 
   const validStates = ["green", "yellow", "red"];
   if (body.state && !validStates.includes(body.state)) {
-    return Response.json({ error: "Invalid state. Use green, yellow, or red." }, { status: 400 });
+    return Response.json(
+      { error: "Invalid state. Use green, yellow, or red." },
+      { status: 400 },
+    );
   }
-  if (body.default_state !== undefined && body.default_state !== null && !validStates.includes(body.default_state)) {
-    return Response.json({ error: "Invalid default_state. Use green, yellow, or red." }, { status: 400 });
+  if (
+    body.default_state !== undefined &&
+    body.default_state !== null &&
+    !validStates.includes(body.default_state)
+  ) {
+    return Response.json(
+      { error: "Invalid default_state. Use green, yellow, or red." },
+      { status: 400 },
+    );
   }
 
   let ttlSeconds: number | null | undefined;
@@ -76,7 +93,10 @@ export async function handlePutNode(
       try {
         ttlSeconds = parseTtl(body.ttl);
       } catch {
-        return Response.json({ error: 'Invalid TTL format. Use e.g. "30s", "10m", "1h", "7d".' }, { status: 400 });
+        return Response.json(
+          { error: 'Invalid TTL format. Use e.g. "30s", "10m", "1h", "7d".' },
+          { status: 400 },
+        );
       }
     }
   }
@@ -89,70 +109,132 @@ export async function handlePutNode(
     const setParts: string[] = [];
     const params: unknown[] = [];
 
-    if (body.label !== undefined) { setParts.push("label = ?"); params.push(body.label); }
-    if (body.state !== undefined) {
-      setParts.push("state = ?"); params.push(body.state);
-      if (stateChanged) { setParts.push("state_changed_at = datetime('now')"); }
+    if (body.label !== undefined) {
+      setParts.push("label = ?");
+      params.push(body.label);
     }
-    if (body.reason !== undefined) { setParts.push("reason = ?"); params.push(body.reason); }
-    if (body.solution !== undefined) { setParts.push("solution = ?"); params.push(body.solution); }
-    if (body.default_state !== undefined) { setParts.push("default_state = ?"); params.push(body.default_state); }
-    if (body.meta !== undefined) { setParts.push("meta = ?"); params.push(JSON.stringify(body.meta)); }
-    if (ttlSeconds !== undefined) { setParts.push("ttl = ?"); params.push(ttlSeconds); }
+    if (body.state !== undefined) {
+      setParts.push("state = ?");
+      params.push(body.state);
+      if (stateChanged) {
+        setParts.push("state_changed_at = datetime('now')");
+      }
+    }
+    if (body.reason !== undefined) {
+      setParts.push("reason = ?");
+      params.push(body.reason);
+    }
+    if (body.solution !== undefined) {
+      setParts.push("solution = ?");
+      params.push(body.solution);
+    }
+    if (body.default_state !== undefined) {
+      setParts.push("default_state = ?");
+      params.push(body.default_state);
+    }
+    if (body.meta !== undefined) {
+      setParts.push("meta = ?");
+      params.push(JSON.stringify(body.meta));
+    }
+    if (ttlSeconds !== undefined) {
+      setParts.push("ttl = ?");
+      params.push(ttlSeconds);
+    }
     setParts.push("updated_at = datetime('now')");
 
     if (setParts.length > 0) {
       params.push(nsId, nodeId);
-      db.query(`UPDATE nodes SET ${setParts.join(", ")} WHERE ns_id = ? AND id = ?`).run(...params);
+      db.query(
+        `UPDATE nodes SET ${setParts.join(", ")} WHERE ns_id = ? AND id = ?`,
+      ).run(...params);
     }
   } else {
     const initState = body.state ?? body.default_state ?? "yellow";
     db.query(
       `INSERT INTO nodes (ns_id, id, label, state, default_state, reason, solution, meta, ttl)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(nsId, nodeId, body.label ?? null, initState, body.default_state ?? null, body.reason ?? null, body.solution ?? null,
-      body.meta ? JSON.stringify(body.meta) : null, ttlSeconds ?? null);
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      nsId,
+      nodeId,
+      body.label ?? null,
+      initState,
+      body.default_state ?? null,
+      body.reason ?? null,
+      body.solution ?? null,
+      body.meta ? JSON.stringify(body.meta) : null,
+      ttlSeconds ?? null,
+    );
   }
 
   if (body.depends_on !== undefined) {
-    db.query("DELETE FROM edges WHERE ns_id = ? AND from_node = ?").run(nsId, nodeId);
+    db.query("DELETE FROM edges WHERE ns_id = ? AND from_node = ?").run(
+      nsId,
+      nodeId,
+    );
 
     for (const dep of body.depends_on) {
-      const depExists = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, dep);
+      const depExists = db
+        .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+        .get(nsId, dep);
       if (!depExists) {
-        const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${dep}`);
+        const chargeErr = await chargeCredits(
+          legendumToken,
+          1,
+          `node create: ${namespace}/${dep}`,
+        );
         if (chargeErr) return chargeErr;
-        db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'yellow')").run(nsId, dep);
+        db.query(
+          "INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'yellow')",
+        ).run(nsId, dep);
       }
 
       if (wouldCreateCycle(db, nsId, nodeId, dep)) {
         return Response.json(
-          { error: `Cycle detected: ${nodeId} -> ${dep} would create a cycle.` },
-          { status: 409 }
+          {
+            error: `Cycle detected: ${nodeId} -> ${dep} would create a cycle.`,
+          },
+          { status: 409 },
         );
       }
 
-      db.query("INSERT OR IGNORE INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)").run(nsId, nodeId, dep);
+      db.query(
+        "INSERT OR IGNORE INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)",
+      ).run(nsId, nodeId, dep);
     }
   }
 
   if (stateChanged) {
-    const prevEffective = prevState ? computeEffectiveState(db, nsId, nodeId) : null;
-    dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, body.reason ?? null, body.solution ?? null, legendumToken);
+    const prevEffective = prevState
+      ? computeEffectiveState(db, nsId, nodeId)
+      : null;
+    dispatchNotifications(
+      db,
+      nsId,
+      namespace,
+      nodeId,
+      prevState,
+      state,
+      prevEffective,
+      body.reason ?? null,
+      body.solution ?? null,
+      legendumToken,
+    );
   }
 
   const node = db
     .query("SELECT * FROM nodes WHERE ns_id = ? AND id = ?")
     .get(nsId, nodeId) as Record<string, unknown>;
 
-  return Response.json(formatNode(db, nsId, namespace, node), { status: existing ? 200 : 201 });
+  return Response.json(formatNode(db, nsId, namespace, node), {
+    status: existing ? 200 : 201,
+  });
 }
 
 export function handleGetNode(
   db: Database,
   nsId: number,
   namespace: string,
-  nodeId: string
+  nodeId: string,
 ): Response {
   const node = db
     .query("SELECT * FROM nodes WHERE ns_id = ? AND id = ?")
@@ -168,7 +250,7 @@ export function handleGetNode(
 export function handleDeleteNode(
   db: Database,
   nsId: number,
-  nodeId: string
+  nodeId: string,
 ): Response {
   const existing = db
     .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
@@ -185,7 +267,7 @@ export function handleDeleteNode(
 export function handleListNodes(
   db: Database,
   nsId: number,
-  namespace: string
+  namespace: string,
 ): Response {
   const nodes = db
     .query("SELECT * FROM nodes WHERE ns_id = ? ORDER BY id")
@@ -205,7 +287,7 @@ function formatNode(
   db: Database,
   nsId: number,
   namespace: string,
-  node: Record<string, unknown>
+  node: Record<string, unknown>,
 ) {
   const nodeId = node.id as string;
 

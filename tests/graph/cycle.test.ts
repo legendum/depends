@@ -1,29 +1,38 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createTestDb } from "../../src/db";
 import { wouldCreateCycle } from "../../src/graph/cycle";
 
 function setup() {
   const db = createTestDb();
-  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES ('h')").run();
-  const { lastInsertRowid } = db.query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)").run(tokenId);
+  const { lastInsertRowid: tokenId } = db
+    .query("INSERT INTO tokens (token_hash) VALUES ('h')")
+    .run();
+  const { lastInsertRowid } = db
+    .query("INSERT INTO namespaces (id, token_id) VALUES ('ns', ?)")
+    .run(tokenId);
   const nsId = Number(lastInsertRowid);
   return { db, nsId };
 }
 
-function addNode(db: ReturnType<typeof createTestDb>, nsId: number, id: string) {
-  db.query(
-    "INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'green')"
-  ).run(nsId, id);
+function addNode(
+  db: ReturnType<typeof createTestDb>,
+  nsId: number,
+  id: string,
+) {
+  db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, ?, 'green')").run(
+    nsId,
+    id,
+  );
 }
 
 function addEdge(
   db: ReturnType<typeof createTestDb>,
   nsId: number,
   from: string,
-  to: string
+  to: string,
 ) {
   db.query(
-    "INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)"
+    "INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, ?, ?)",
   ).run(nsId, from, to);
 }
 

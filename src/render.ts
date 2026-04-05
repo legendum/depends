@@ -1,5 +1,5 @@
+import { join } from "node:path";
 import { Eta } from "eta";
-import { join } from "path";
 
 const VIEWS_DIR = join(import.meta.dir, "..", "views");
 
@@ -11,7 +11,7 @@ const eta = new Eta({ views: VIEWS_DIR, cache: true });
  */
 export function render(
   page: string,
-  data: Record<string, unknown> = {}
+  data: Record<string, unknown> = {},
 ): Response {
   const body = eta.render(page, data);
   const html = eta.render("layout", { ...data, body });

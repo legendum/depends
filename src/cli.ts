@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { execSync } from "child_process";
-import { join } from "path";
-import { homedir } from "os";
+import { execSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import yaml from "js-yaml";
 
 // --- Config ---
@@ -19,11 +19,14 @@ function loadConfig(): Config {
   const envNs = process.env.DEPENDS_NAMESPACE;
   const envUrl = process.env.DEPENDS_API_URL;
 
-  const configPath = process.env.DEPENDS_CONFIG ?? join(homedir(), ".config", "depends", "config.yml");
+  const configPath =
+    process.env.DEPENDS_CONFIG ??
+    join(homedir(), ".config", "depends", "config.yml");
   let fileConfig: Config = {};
   if (existsSync(configPath)) {
     try {
-      fileConfig = (yaml.load(readFileSync(configPath, "utf-8")) as Config) ?? {};
+      fileConfig =
+        (yaml.load(readFileSync(configPath, "utf-8")) as Config) ?? {};
     } catch {}
   }
 
@@ -33,7 +36,9 @@ function loadConfig(): Config {
   // No token configured anywhere → local mode
   if (!token) {
     const localUrl = apiUrl ?? "http://localhost:3000/v1";
-    console.error(`${COLORS.dim}Using local mode (dep_local → ${localUrl}). Set DEPENDS_TOKEN for production.${COLORS.reset}`);
+    console.error(
+      `${COLORS.dim}Using local mode (dep_local → ${localUrl}). Set DEPENDS_TOKEN for production.${COLORS.reset}`,
+    );
     return {
       token: "dep_local",
       default_namespace: envNs ?? fileConfig.default_namespace,
@@ -51,7 +56,9 @@ function loadConfig(): Config {
 function getToken(config: Config): string {
   if (!config.token) {
     console.error("Error: No token configured.");
-    console.error("Set DEPENDS_TOKEN or add token to ~/.config/depends/config.yml");
+    console.error(
+      "Set DEPENDS_TOKEN or add token to ~/.config/depends/config.yml",
+    );
     process.exit(1);
   }
   return config.token;
@@ -69,7 +76,9 @@ function getNamespace(config: Config, args: string[]): string {
   // Try depends.yml in current directory
   if (existsSync("depends.yml")) {
     try {
-      const spec = yaml.load(readFileSync("depends.yml", "utf-8")) as { namespace?: string };
+      const spec = yaml.load(readFileSync("depends.yml", "utf-8")) as {
+        namespace?: string;
+      };
       if (spec?.namespace) return spec.namespace;
     } catch {}
   }
@@ -77,7 +86,9 @@ function getNamespace(config: Config, args: string[]): string {
   if (config.default_namespace) return config.default_namespace;
 
   console.error("Error: No namespace specified.");
-  console.error("Use -n <namespace>, set DEPENDS_NAMESPACE, add default_namespace to ~/.config/depends/config.yml, or have a depends.yml in the current directory.");
+  console.error(
+    "Use -n <namespace>, set DEPENDS_NAMESPACE, add default_namespace to ~/.config/depends/config.yml, or have a depends.yml in the current directory.",
+  );
   process.exit(1);
 }
 
@@ -92,11 +103,11 @@ async function api(
     contentType?: string;
     headers?: Record<string, string>;
     auth?: boolean;
-  } = {}
+  } = {},
 ): Promise<Response> {
   const headers: Record<string, string> = { ...opts.headers };
   if (opts.auth !== false) {
-    headers["Authorization"] = `Bearer ${getToken(config)}`;
+    headers.Authorization = `Bearer ${getToken(config)}`;
   }
   if (opts.contentType) {
     headers["Content-Type"] = opts.contentType;
@@ -145,7 +156,7 @@ async function cmdSignup(config: Config, args: string[]) {
 
   if (!email) {
     process.stdout.write("Email: ");
-    email = (await new Promise<string>((resolve) => {
+    email = await new Promise<string>((resolve) => {
       let input = "";
       process.stdin.setEncoding("utf-8");
       process.stdin.on("data", (chunk) => {
@@ -156,12 +167,12 @@ async function cmdSignup(config: Config, args: string[]) {
         }
       });
       process.stdin.resume();
-    }));
+    });
   }
 
   if (!accountKey) {
     process.stdout.write("Legendum account key (lak_...): ");
-    accountKey = (await new Promise<string>((resolve) => {
+    accountKey = await new Promise<string>((resolve) => {
       let input = "";
       process.stdin.setEncoding("utf-8");
       process.stdin.on("data", (chunk) => {
@@ -172,7 +183,7 @@ async function cmdSignup(config: Config, args: string[]) {
         }
       });
       process.stdin.resume();
-    }));
+    });
   }
 
   const res = await api(config, "/signup", {
@@ -208,7 +219,11 @@ async function cmdInit() {
 
   // Derive namespace from current directory name, sanitized to valid ID
   const dirName = process.cwd().split("/").pop() ?? "my-project";
-  const namespace = dirName.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/^-+|-+$/g, "") || "my-project";
+  const namespace =
+    dirName
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/^-+|-+$/g, "") || "my-project";
 
   const scaffold = `namespace: ${namespace}
 
@@ -239,7 +254,9 @@ async function cmdPush(config: Config, args: string[]) {
   const spec = yaml.load(content) as { namespace?: string };
 
   if (spec?.namespace && spec.namespace !== ns) {
-    console.error(`Error: depends.yml namespace "${spec.namespace}" doesn't match target namespace "${ns}".`);
+    console.error(
+      `Error: depends.yml namespace "${spec.namespace}" doesn't match target namespace "${ns}".`,
+    );
     process.exit(1);
   }
 
@@ -274,7 +291,9 @@ async function cmdPush(config: Config, args: string[]) {
     process.exit(1);
   }
 
-  console.log(`Pushed depends.yml to namespace "${ns}".${prune ? " (pruned)" : ""}`);
+  console.log(
+    `Pushed depends.yml to namespace "${ns}".${prune ? " (pruned)" : ""}`,
+  );
 }
 
 async function cmdPull(config: Config, args: string[]) {
@@ -343,13 +362,17 @@ async function cmdStatus(config: Config, args: string[]) {
       console.log(JSON.stringify(node, null, 2));
       return;
     }
-    console.log(`${COLORS.bold}${node.id}${COLORS.reset}${node.label ? ` (${node.label})` : ""}`);
+    console.log(
+      `${COLORS.bold}${node.id}${COLORS.reset}${node.label ? ` (${node.label})` : ""}`,
+    );
     console.log(`  state:     ${colorState(node.state)}`);
     console.log(`  effective: ${colorState(node.effective_state)}`);
     if (node.reason) console.log(`  reason:    ${node.reason}`);
     if (node.solution) console.log(`  solution:  ${node.solution}`);
-    if (node.depends_on.length > 0) console.log(`  depends_on: ${node.depends_on.join(", ")}`);
-    if (node.depended_on_by.length > 0) console.log(`  depended_on_by: ${node.depended_on_by.join(", ")}`);
+    if (node.depends_on.length > 0)
+      console.log(`  depends_on: ${node.depends_on.join(", ")}`);
+    if (node.depended_on_by.length > 0)
+      console.log(`  depended_on_by: ${node.depended_on_by.join(", ")}`);
     return;
   }
 
@@ -377,8 +400,13 @@ async function cmdStatus(config: Config, args: string[]) {
   for (const node of nodes) {
     const id = node.id.padEnd(maxId);
     const own = colorState(node.state);
-    const eff = node.state !== node.effective_state ? ` ${COLORS.dim}(effective: ${colorState(node.effective_state)}${COLORS.dim})${COLORS.reset}` : "";
-    const label = node.label ? ` ${COLORS.dim}${node.label}${COLORS.reset}` : "";
+    const eff =
+      node.state !== node.effective_state
+        ? ` ${COLORS.dim}(effective: ${colorState(node.effective_state)}${COLORS.dim})${COLORS.reset}`
+        : "";
+    const label = node.label
+      ? ` ${COLORS.dim}${node.label}${COLORS.reset}`
+      : "";
     const reason = node.reason ? ` — ${node.reason}` : "";
     console.log(`  ${id}  ${own}${eff}${label}${reason}`);
   }
@@ -388,7 +416,9 @@ async function cmdSet(config: Config, args: string[]) {
   const positional = args.filter((a) => !a.startsWith("-") && a !== "set");
 
   if (positional.length < 2) {
-    console.error("Usage: depends set [<namespace>/]<node-id> <state> [--reason <reason>] [--solution <solution>]");
+    console.error(
+      "Usage: depends set [<namespace>/]<node-id> <state> [--reason <reason>] [--solution <solution>]",
+    );
     process.exit(1);
   }
 
@@ -406,7 +436,9 @@ async function cmdSet(config: Config, args: string[]) {
     nodeId = target;
   }
   if (!["green", "yellow", "red"].includes(state)) {
-    console.error(`Error: Invalid state "${state}". Must be green, yellow, or red.`);
+    console.error(
+      `Error: Invalid state "${state}". Must be green, yellow, or red.`,
+    );
     process.exit(1);
   }
 
@@ -435,7 +467,14 @@ async function cmdSet(config: Config, args: string[]) {
 
 interface GraphData {
   namespace: string;
-  nodes: { id: string; state: string; effective_state: string; label: string | null; reason: string | null; solution: string | null }[];
+  nodes: {
+    id: string;
+    state: string;
+    effective_state: string;
+    label: string | null;
+    reason: string | null;
+    solution: string | null;
+  }[];
   edges: { from: string; to: string }[];
 }
 
@@ -473,17 +512,25 @@ async function cmdGraph(config: Config, args: string[]) {
   const nodeMap = new Map(graph.nodes.map((n) => [n.id, n]));
   const printed = new Set<string>();
 
-  function printTree(nodeId: string, prefix: string, isLast: boolean, isRoot: boolean) {
+  function printTree(
+    nodeId: string,
+    prefix: string,
+    isLast: boolean,
+    isRoot: boolean,
+  ) {
     const node = nodeMap.get(nodeId);
     if (!node) return;
 
     const connector = isRoot ? "" : isLast ? "└── " : "├── ";
-    const stateColor = COLORS[node.effective_state as keyof typeof COLORS] ?? "";
+    const stateColor =
+      COLORS[node.effective_state as keyof typeof COLORS] ?? "";
     const symbol = "●";
     const label = node.label ? ` (${node.label})` : "";
     const reason = node.reason ? ` — ${node.reason}` : "";
 
-    console.log(`${prefix}${connector}${stateColor}${symbol}${COLORS.reset} ${node.id}${label}${reason}`);
+    console.log(
+      `${prefix}${connector}${stateColor}${symbol}${COLORS.reset} ${node.id}${label}${reason}`,
+    );
 
     if (printed.has(nodeId)) return;
     printed.add(nodeId);
@@ -508,7 +555,10 @@ async function cmdValidate() {
   }
 
   const content = readFileSync("depends.yml", "utf-8");
-  let spec: { namespace?: string; nodes?: Record<string, { depends_on?: string[] }> };
+  let spec: {
+    namespace?: string;
+    nodes?: Record<string, { depends_on?: string[] }>;
+  };
   try {
     spec = yaml.load(content) as typeof spec;
   } catch (e: unknown) {
@@ -533,7 +583,9 @@ async function cmdValidate() {
         for (const dep of node.depends_on) {
           allRefs.add(dep);
           if (!nodeIds.has(dep)) {
-            console.log(`${COLORS.yellow}Warning:${COLORS.reset} "${id}" depends on "${dep}" which is not defined in this file (will be auto-created).`);
+            console.log(
+              `${COLORS.yellow}Warning:${COLORS.reset} "${id}" depends on "${dep}" which is not defined in this file (will be auto-created).`,
+            );
           }
         }
       }
@@ -583,7 +635,9 @@ async function cmdValidate() {
     process.exit(1);
   }
 
-  console.log(`${COLORS.green}✓${COLORS.reset} depends.yml is valid. (${nodeIds.size} nodes, namespace: ${spec.namespace})`);
+  console.log(
+    `${COLORS.green}✓${COLORS.reset} depends.yml is valid. (${nodeIds.size} nodes, namespace: ${spec.namespace})`,
+  );
 }
 
 async function cmdDelete(config: Config, args: string[]) {
@@ -608,25 +662,35 @@ async function cmdDiff(config: Config, args: string[]) {
   }
 
   const localContent = readFileSync("depends.yml", "utf-8");
-  const localSpec = yaml.load(localContent) as { nodes?: Record<string, { label?: string; depends_on?: string[] }> };
+  const localSpec = yaml.load(localContent) as {
+    nodes?: Record<string, { label?: string; depends_on?: string[] }>;
+  };
   const localNodes = localSpec?.nodes ?? {};
 
   // Fetch remote
   const res = await api(config, `/graph/${ns}?format=yaml`);
-  if (res.status === 404 || (res.ok && (await res.clone().text()).trim() === "")) {
-    console.log("Remote namespace is empty — everything in depends.yml would be new.");
+  if (
+    res.status === 404 ||
+    (res.ok && (await res.clone().text()).trim() === "")
+  ) {
+    console.log(
+      "Remote namespace is empty — everything in depends.yml would be new.",
+    );
     return;
   }
 
-  let remoteYaml: string;
   if (!res.ok) {
     // Namespace might not exist yet
-    console.log("Remote namespace not found — everything in depends.yml would be new.");
+    console.log(
+      "Remote namespace not found — everything in depends.yml would be new.",
+    );
     return;
   }
 
-  remoteYaml = await res.text();
-  const remoteSpec = yaml.load(remoteYaml) as { nodes?: Record<string, { label?: string; depends_on?: string[] }> };
+  const remoteYaml = await res.text();
+  const remoteSpec = yaml.load(remoteYaml) as {
+    nodes?: Record<string, { label?: string; depends_on?: string[] }>;
+  };
   const remoteNodes = remoteSpec?.nodes ?? {};
 
   const localIds = new Set(Object.keys(localNodes));
@@ -645,7 +709,9 @@ async function cmdDiff(config: Config, args: string[]) {
   // Removed nodes (only if --prune would be used)
   for (const id of remoteIds) {
     if (!localIds.has(id)) {
-      console.log(`${COLORS.red}- ${id}${COLORS.reset} (not in local YAML, would be removed with --prune)`);
+      console.log(
+        `${COLORS.red}- ${id}${COLORS.reset} (not in local YAML, would be removed with --prune)`,
+      );
       changes++;
     }
   }
@@ -658,12 +724,16 @@ async function cmdDiff(config: Config, args: string[]) {
 
     const diffs: string[] = [];
     if ((local.label ?? null) !== (remote.label ?? null)) {
-      diffs.push(`label: ${remote.label ?? "(none)"} → ${local.label ?? "(none)"}`);
+      diffs.push(
+        `label: ${remote.label ?? "(none)"} → ${local.label ?? "(none)"}`,
+      );
     }
     const localDeps = (local.depends_on ?? []).sort().join(",");
     const remoteDeps = (remote.depends_on ?? []).sort().join(",");
     if (localDeps !== remoteDeps) {
-      diffs.push(`depends_on: [${remoteDeps || "none"}] → [${localDeps || "none"}]`);
+      diffs.push(
+        `depends_on: [${remoteDeps || "none"}] → [${localDeps || "none"}]`,
+      );
     }
 
     if (diffs.length > 0) {
@@ -718,10 +788,14 @@ async function cmdUsage(config: Config, args: string[]) {
 
   console.log(`${COLORS.bold}${ns}${COLORS.reset} — ${data.period}`);
   console.log();
-  console.log(`  Nodes          ${data.nodes} total, ${data.active_nodes} active this month`);
+  console.log(
+    `  Nodes          ${data.nodes} total, ${data.active_nodes} active this month`,
+  );
   console.log(`  Events         ${data.total_events} this month`);
-  if (data.webhook_deliveries > 0) console.log(`  Webhooks       ${data.webhook_deliveries} fired this month`);
-  if (data.emails_sent > 0) console.log(`  Emails         ${data.emails_sent} sent this month`);
+  if (data.webhook_deliveries > 0)
+    console.log(`  Webhooks       ${data.webhook_deliveries} fired this month`);
+  if (data.emails_sent > 0)
+    console.log(`  Emails         ${data.emails_sent} sent this month`);
 }
 
 interface Event {
@@ -739,7 +813,8 @@ async function cmdEvents(config: Config, args: string[]) {
   const target = args.find((a) => !a.startsWith("-") && a !== "events");
   const jsonOutput = args.includes("--json");
   const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 && args[limitIdx + 1] ? args[limitIdx + 1] : "20";
+  const limit =
+    limitIdx !== -1 && args[limitIdx + 1] ? args[limitIdx + 1] : "20";
 
   let ns: string;
   let nodeId: string | undefined;
@@ -776,7 +851,9 @@ async function cmdEvents(config: Config, args: string[]) {
   }
 
   for (const e of events) {
-    const prev = e.previous_state ? colorState(e.previous_state) : `${COLORS.dim}(new)${COLORS.reset}`;
+    const prev = e.previous_state
+      ? colorState(e.previous_state)
+      : `${COLORS.dim}(new)${COLORS.reset}`;
     const arrow = `${COLORS.dim}→${COLORS.reset}`;
     let context = "";
     if (e.reason || e.solution) {
@@ -786,7 +863,9 @@ async function cmdEvents(config: Config, args: string[]) {
       context = ` ${COLORS.dim}— ${parts.join("; ")}${COLORS.reset}`;
     }
     const time = `${COLORS.dim}${e.created_at}${COLORS.reset}`;
-    console.log(`  ${time}  ${e.node_id}  ${prev} ${arrow} ${colorState(e.new_state)}${context}`);
+    console.log(
+      `  ${time}  ${e.node_id}  ${prev} ${arrow} ${colorState(e.new_state)}${context}`,
+    );
   }
 }
 
@@ -796,7 +875,9 @@ async function cmdAdmin(args: string[]) {
   // Admin commands operate directly on the local database
   const dbPath = join(process.cwd(), "data", "depends.db");
   if (!existsSync(dbPath)) {
-    console.error("Error: No database found at data/depends.db. Run from the server directory.");
+    console.error(
+      "Error: No database found at data/depends.db. Run from the server directory.",
+    );
     process.exit(1);
   }
 
@@ -804,8 +885,15 @@ async function cmdAdmin(args: string[]) {
   const db = createDb(dbPath);
 
   if (sub === "tokens") {
-    const tokens = db.query("SELECT id, email, legendum_token, created_at FROM tokens ORDER BY created_at").all() as {
-      id: string; email: string | null; legendum_token: string | null; created_at: string;
+    const tokens = db
+      .query(
+        "SELECT id, email, legendum_token, created_at FROM tokens ORDER BY created_at",
+      )
+      .all() as {
+      id: string;
+      email: string | null;
+      legendum_token: string | null;
+      created_at: string;
     }[];
 
     if (tokens.length === 0) {
@@ -818,7 +906,9 @@ async function cmdAdmin(args: string[]) {
     for (const t of tokens) {
       const email = (t.email ?? "-").padEnd(maxEmail);
       const linked = t.legendum_token ? "linked" : "unlinked";
-      console.log(`  ${email}  ${linked}  ${COLORS.dim}${t.id}  ${t.created_at}${COLORS.reset}`);
+      console.log(
+        `  ${email}  ${linked}  ${COLORS.dim}${t.id}  ${t.created_at}${COLORS.reset}`,
+      );
     }
   } else {
     console.error(`Usage:
@@ -829,7 +919,10 @@ async function cmdAdmin(args: string[]) {
 
 async function cmdServe(args: string[]) {
   const portIdx = args.indexOf("-p");
-  const port = portIdx !== -1 && args[portIdx + 1] ? parseInt(args[portIdx + 1], 10) : 3000;
+  const port =
+    portIdx !== -1 && args[portIdx + 1]
+      ? parseInt(args[portIdx + 1], 10)
+      : 3000;
 
   const { createDb } = await import("./db");
   const { createServer } = await import("./server");
@@ -894,7 +987,10 @@ async function main() {
   for (let i = 0; i < args.length; i++) {
     if ((args[i] === "-n" || args[i] === "--namespace") && args[i + 1]) {
       i++; // skip value
-    } else if ((args[i] === "--reason" || args[i] === "--solution") && args[i + 1]) {
+    } else if (
+      (args[i] === "--reason" || args[i] === "--solution") &&
+      args[i + 1]
+    ) {
       cleanArgs.push(args[i], args[i + 1]);
       i++;
     } else {
@@ -919,7 +1015,10 @@ async function main() {
       return;
     case "signup":
       // Always use production API for signup — never local mode
-      await cmdSignup({ api_url: process.env.DEPENDS_API_URL ?? "https://depends.cc/v1" }, args);
+      await cmdSignup(
+        { api_url: process.env.DEPENDS_API_URL ?? "https://depends.cc/v1" },
+        args,
+      );
       return;
   }
 

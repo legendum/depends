@@ -83,21 +83,28 @@ CREATE INDEX IF NOT EXISTS idx_events_node_id ON events(ns_id, node_id, id);
 CREATE INDEX IF NOT EXISTS idx_edges_to_node ON edges(ns_id, to_node);
 `;
 
-
 /**
  * Parse a TTL duration string like "10m", "1h", "30s" into seconds.
  */
 export function parseTtl(ttl: string): number {
   const match = ttl.match(/^(\d+)(s|m|h|d)$/);
-  if (!match) throw new Error(`Invalid TTL format: ${ttl}. Use e.g. "30s", "10m", "1h", "7d".`);
+  if (!match)
+    throw new Error(
+      `Invalid TTL format: ${ttl}. Use e.g. "30s", "10m", "1h", "7d".`,
+    );
   const value = parseInt(match[1], 10);
   const unit = match[2];
   switch (unit) {
-    case "s": return value;
-    case "m": return value * 60;
-    case "h": return value * 3600;
-    case "d": return value * 86400;
-    default: return value;
+    case "s":
+      return value;
+    case "m":
+      return value * 60;
+    case "h":
+      return value * 3600;
+    case "d":
+      return value * 86400;
+    default:
+      return value;
   }
 }
 

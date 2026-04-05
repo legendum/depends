@@ -1,9 +1,16 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { createTestDb } from "../src/db";
 
-function insertNs(db: ReturnType<typeof createTestDb>, nsId: string = "test"): number {
-  const { lastInsertRowid: tokenId } = db.query("INSERT INTO tokens (token_hash) VALUES ('hash')").run();
-  const { lastInsertRowid } = db.query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)").run(nsId, tokenId);
+function insertNs(
+  db: ReturnType<typeof createTestDb>,
+  nsId: string = "test",
+): number {
+  const { lastInsertRowid: tokenId } = db
+    .query("INSERT INTO tokens (token_hash) VALUES ('hash')")
+    .run();
+  const { lastInsertRowid } = db
+    .query("INSERT INTO namespaces (id, token_id) VALUES (?, ?)")
+    .run(nsId, tokenId);
   return Number(lastInsertRowid);
 }
 
@@ -25,7 +32,9 @@ describe("database", () => {
 
   test("enables foreign keys", () => {
     const db = createTestDb();
-    const result = db.query("PRAGMA foreign_keys").get() as { foreign_keys: number };
+    const result = db.query("PRAGMA foreign_keys").get() as {
+      foreign_keys: number;
+    };
     expect(result.foreign_keys).toBe(1);
     db.close();
   });
@@ -33,7 +42,9 @@ describe("database", () => {
   test("enforces foreign key on nodes -> namespaces", () => {
     const db = createTestDb();
     expect(() => {
-      db.query("INSERT INTO nodes (ns_id, id, state) VALUES (9999, 'n1', 'green')").run();
+      db.query(
+        "INSERT INTO nodes (ns_id, id, state) VALUES (9999, 'n1', 'green')",
+      ).run();
     }).toThrow();
     db.close();
   });
@@ -41,7 +52,9 @@ describe("database", () => {
   test("cascades deletes from namespace to nodes", () => {
     const db = createTestDb();
     const nsId = insertNs(db);
-    db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'n1', 'green')").run(nsId);
+    db.query(
+      "INSERT INTO nodes (ns_id, id, state) VALUES (?, 'n1', 'green')",
+    ).run(nsId);
 
     db.query("DELETE FROM namespaces WHERE ns_id = ?").run(nsId);
 
@@ -53,9 +66,15 @@ describe("database", () => {
   test("cascades deletes from namespace to edges", () => {
     const db = createTestDb();
     const nsId = insertNs(db);
-    db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'a', 'green')").run(nsId);
-    db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'b', 'green')").run(nsId);
-    db.query("INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, 'a', 'b')").run(nsId);
+    db.query(
+      "INSERT INTO nodes (ns_id, id, state) VALUES (?, 'a', 'green')",
+    ).run(nsId);
+    db.query(
+      "INSERT INTO nodes (ns_id, id, state) VALUES (?, 'b', 'green')",
+    ).run(nsId);
+    db.query(
+      "INSERT INTO edges (ns_id, from_node, to_node) VALUES (?, 'a', 'b')",
+    ).run(nsId);
 
     db.query("DELETE FROM namespaces WHERE ns_id = ?").run(nsId);
 
@@ -68,7 +87,9 @@ describe("database", () => {
     const db = createTestDb();
     const nsId = insertNs(db);
     expect(() => {
-      db.query("INSERT INTO nodes (ns_id, id, state) VALUES (?, 'n1', 'invalid')").run(nsId);
+      db.query(
+        "INSERT INTO nodes (ns_id, id, state) VALUES (?, 'n1', 'invalid')",
+      ).run(nsId);
     }).toThrow();
     db.close();
   });
@@ -78,7 +99,7 @@ describe("database", () => {
     const nsId = insertNs(db);
     expect(() => {
       db.query(
-        `INSERT INTO notification_rules (ns_id, id, on_state) VALUES (?, 'r1', 'red')`
+        `INSERT INTO notification_rules (ns_id, id, on_state) VALUES (?, 'r1', 'red')`,
       ).run(nsId);
     }).toThrow();
     db.close();
@@ -88,9 +109,11 @@ describe("database", () => {
     const db = createTestDb();
     const nsId = insertNs(db);
     db.query(
-      `INSERT INTO notification_rules (ns_id, id, on_state, url, email) VALUES (?, 'r1', 'red', 'https://example.com', 'a@b.com')`
+      `INSERT INTO notification_rules (ns_id, id, on_state, url, email) VALUES (?, 'r1', 'red', 'https://example.com', 'a@b.com')`,
     ).run(nsId);
-    const rule = db.query("SELECT * FROM notification_rules WHERE ns_id = ? AND id = 'r1'").get(nsId) as Record<string, unknown>;
+    const rule = db
+      .query("SELECT * FROM notification_rules WHERE ns_id = ? AND id = 'r1'")
+      .get(nsId) as Record<string, unknown>;
     expect(rule.url).toBe("https://example.com");
     expect(rule.email).toBe("a@b.com");
     db.close();
@@ -98,22 +121,38 @@ describe("database", () => {
 
   test("allows same namespace name for different tokens", () => {
     const db = createTestDb();
-    const { lastInsertRowid: tok1 } = db.query("INSERT INTO tokens (token_hash) VALUES ('h1')").run();
-    const { lastInsertRowid: tok2 } = db.query("INSERT INTO tokens (token_hash) VALUES ('h2')").run();
-    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tok1);
-    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tok2);
+    const { lastInsertRowid: tok1 } = db
+      .query("INSERT INTO tokens (token_hash) VALUES ('h1')")
+      .run();
+    const { lastInsertRowid: tok2 } = db
+      .query("INSERT INTO tokens (token_hash) VALUES ('h2')")
+      .run();
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+      tok1,
+    );
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+      tok2,
+    );
 
-    const count = db.query("SELECT COUNT(*) as c FROM namespaces WHERE id = 'api'").get() as { c: number };
+    const count = db
+      .query("SELECT COUNT(*) as c FROM namespaces WHERE id = 'api'")
+      .get() as { c: number };
     expect(count.c).toBe(2);
     db.close();
   });
 
   test("prevents duplicate namespace name for same token", () => {
     const db = createTestDb();
-    const { lastInsertRowid: tok } = db.query("INSERT INTO tokens (token_hash) VALUES ('h1')").run();
-    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tok);
+    const { lastInsertRowid: tok } = db
+      .query("INSERT INTO tokens (token_hash) VALUES ('h1')")
+      .run();
+    db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+      tok,
+    );
     expect(() => {
-      db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(tok);
+      db.query("INSERT INTO namespaces (id, token_id) VALUES ('api', ?)").run(
+        tok,
+      );
     }).toThrow();
     db.close();
   });

@@ -1,12 +1,16 @@
-import { Database } from "bun:sqlite";
-import { computeEffectiveState, getUpstreamNodes, getDownstreamNodes } from "../graph/effective";
-import { importYaml, exportYaml, parseYaml } from "../graph/yaml";
+import type { Database } from "bun:sqlite";
+import {
+  computeEffectiveState,
+  getDownstreamNodes,
+  getUpstreamNodes,
+} from "../graph/effective";
+import { exportYaml, importYaml, parseYaml } from "../graph/yaml";
 
 export function handleGetGraph(
   db: Database,
   nsId: number,
   namespace: string,
-  url: URL
+  url: URL,
 ): Response {
   const format = url.searchParams.get("format");
   const stateFilter = url.searchParams.get("state");
@@ -24,9 +28,11 @@ export function handleGetSubgraph(
   db: Database,
   nsId: number,
   namespace: string,
-  nodeId: string
+  nodeId: string,
 ): Response {
-  const node = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, nodeId);
+  const node = db
+    .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId);
   if (!node) {
     return Response.json({ error: "Node not found." }, { status: 404 });
   }
@@ -42,9 +48,11 @@ export function handleGetUpstream(
   db: Database,
   nsId: number,
   namespace: string,
-  nodeId: string
+  nodeId: string,
 ): Response {
-  const node = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, nodeId);
+  const node = db
+    .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId);
   if (!node) {
     return Response.json({ error: "Node not found." }, { status: 404 });
   }
@@ -58,9 +66,11 @@ export function handleGetDownstream(
   db: Database,
   nsId: number,
   namespace: string,
-  nodeId: string
+  nodeId: string,
 ): Response {
-  const node = db.query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?").get(nsId, nodeId);
+  const node = db
+    .query("SELECT id FROM nodes WHERE ns_id = ? AND id = ?")
+    .get(nsId, nodeId);
   if (!node) {
     return Response.json({ error: "Node not found." }, { status: 404 });
   }
@@ -76,7 +86,7 @@ export async function handlePutGraph(
   namespace: string,
   req: Request,
   tokenId: number,
-  legendumToken: string | null
+  legendumToken: string | null,
 ): Promise<Response> {
   const url = new URL(req.url);
   const prune = url.searchParams.get("prune") === "true";
@@ -88,8 +98,10 @@ export async function handlePutGraph(
 
     if (spec.namespace !== namespace) {
       return Response.json(
-        { error: `YAML namespace "${spec.namespace}" doesn't match URL namespace "${namespace}".` },
-        { status: 400 }
+        {
+          error: `YAML namespace "${spec.namespace}" doesn't match URL namespace "${namespace}".`,
+        },
+        { status: 400 },
       );
     }
 
@@ -99,7 +111,7 @@ export async function handlePutGraph(
     if (e.code === "insufficient_funds") {
       return Response.json(
         { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
-        { status: 402 }
+        { status: 402 },
       );
     }
     const message = e instanceof Error ? e.message : "Invalid YAML";
@@ -112,11 +124,17 @@ function buildGraph(
   db: Database,
   nsId: number,
   namespace: string,
-  stateFilter: string | null
+  stateFilter: string | null,
 ) {
   const allNodes = db
     .query("SELECT * FROM nodes WHERE ns_id = ? ORDER BY id")
-    .all(nsId) as { id: string; state: string; label?: string | null; reason?: string | null; solution?: string | null }[];
+    .all(nsId) as {
+    id: string;
+    state: string;
+    label?: string | null;
+    reason?: string | null;
+    solution?: string | null;
+  }[];
 
   const nodes = allNodes.map((n) => ({
     id: n.id,
@@ -134,7 +152,9 @@ function buildGraph(
   const nodeIds = new Set(filteredNodes.map((n) => n.id));
 
   const edges = db
-    .query("SELECT from_node, to_node FROM edges WHERE ns_id = ? ORDER BY from_node, to_node")
+    .query(
+      "SELECT from_node, to_node FROM edges WHERE ns_id = ? ORDER BY from_node, to_node",
+    )
     .all(nsId) as { from_node: string; to_node: string }[];
 
   const filteredEdges = stateFilter
@@ -152,13 +172,20 @@ function buildGraphForNodes(
   db: Database,
   nsId: number,
   namespace: string,
-  nodeIds: Set<string>
+  nodeIds: Set<string>,
 ) {
   const nodes = [];
   for (const id of nodeIds) {
     const node = db
-      .query("SELECT state, label, reason, solution FROM nodes WHERE ns_id = ? AND id = ?")
-      .get(nsId, id) as { state: string; label?: string | null; reason?: string | null; solution?: string | null } | null;
+      .query(
+        "SELECT state, label, reason, solution FROM nodes WHERE ns_id = ? AND id = ?",
+      )
+      .get(nsId, id) as {
+      state: string;
+      label?: string | null;
+      reason?: string | null;
+      solution?: string | null;
+    } | null;
     if (node) {
       nodes.push({
         id,
@@ -172,11 +199,13 @@ function buildGraphForNodes(
   }
 
   const edges = db
-    .query("SELECT from_node, to_node FROM edges WHERE ns_id = ? ORDER BY from_node, to_node")
+    .query(
+      "SELECT from_node, to_node FROM edges WHERE ns_id = ? ORDER BY from_node, to_node",
+    )
     .all(nsId) as { from_node: string; to_node: string }[];
 
   const filteredEdges = edges.filter(
-    (e) => nodeIds.has(e.from_node) && nodeIds.has(e.to_node)
+    (e) => nodeIds.has(e.from_node) && nodeIds.has(e.to_node),
   );
 
   return {

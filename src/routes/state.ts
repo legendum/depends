@@ -1,4 +1,4 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
 import { dispatchNotifications } from "../notify/dispatcher";
 
@@ -9,7 +9,7 @@ const VALID_STATES = ["green", "yellow", "red"] as const;
 async function chargeCredits(
   legendumToken: string | null,
   amount: number,
-  description: string
+  description: string,
 ): Promise<Response | null> {
   if (!legendumToken) return null;
   try {
@@ -19,7 +19,7 @@ async function chargeCredits(
     if (err.code === "insufficient_funds") {
       return Response.json(
         { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
-        { status: 402 }
+        { status: 402 },
       );
     }
     throw err;
@@ -33,17 +33,23 @@ export async function handlePutState(
   nodeId: string,
   state: string,
   req: Request,
-  legendumToken: string | null
+  legendumToken: string | null,
 ): Promise<Response> {
   if (nodeId.includes("/")) {
-    return Response.json({ error: "Node ID must not contain '/'." }, { status: 400 });
+    return Response.json(
+      { error: "Node ID must not contain '/'." },
+      { status: 400 },
+    );
   }
 
   const reason = req.headers.get("X-Reason");
   const solution = req.headers.get("X-Solution");
 
   if (!VALID_STATES.includes(state as (typeof VALID_STATES)[number])) {
-    return Response.json({ error: "Invalid state. Use green, yellow, or red." }, { status: 400 });
+    return Response.json(
+      { error: "Invalid state. Use green, yellow, or red." },
+      { status: 400 },
+    );
   }
 
   const existing = db
@@ -52,33 +58,60 @@ export async function handlePutState(
 
   if (!existing) {
     // New node — charge for node create + state write
-    const chargeErr = await chargeCredits(legendumToken, 1, `node create: ${namespace}/${nodeId}`);
+    const chargeErr = await chargeCredits(
+      legendumToken,
+      1,
+      `node create: ${namespace}/${nodeId}`,
+    );
     if (chargeErr) return chargeErr;
 
     db.query(
-      "INSERT INTO nodes (ns_id, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))"
+      "INSERT INTO nodes (ns_id, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))",
     ).run(nsId, nodeId, state, reason, solution);
 
-    const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+    const writeErr = await chargeCredits(
+      legendumToken,
+      1,
+      `state write: ${namespace}/${nodeId}`,
+    );
     if (writeErr) return writeErr;
 
-    dispatchNotifications(db, nsId, namespace, nodeId, null, state, null, reason, solution, legendumToken);
+    dispatchNotifications(
+      db,
+      nsId,
+      namespace,
+      nodeId,
+      null,
+      state,
+      null,
+      reason,
+      solution,
+      legendumToken,
+    );
     return new Response(null, { status: 204 });
   }
 
   if (existing.state === state) {
     db.query(
-      "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE ns_id = ? AND id = ?"
+      "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE ns_id = ? AND id = ?",
     ).run(reason, solution, nsId, nodeId);
 
-    const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+    const writeErr = await chargeCredits(
+      legendumToken,
+      1,
+      `state write: ${namespace}/${nodeId}`,
+    );
     if (writeErr) return writeErr;
 
     return new Response(null, { status: 204 });
   }
 
   // State change — charge for state write
-  const writeErr = await chargeCredits(legendumToken, 1, `state write: ${namespace}/${nodeId}`);
+  const writeErr = await chargeCredits(
+    legendumToken,
+    1,
+    `state write: ${namespace}/${nodeId}`,
+  );
   if (writeErr) return writeErr;
 
   const prevState = existing.state;
@@ -86,10 +119,21 @@ export async function handlePutState(
 
   db.query(
     `UPDATE nodes SET state = ?, reason = ?, solution = ?, state_changed_at = datetime('now'), updated_at = datetime('now'), last_state_write = datetime('now')
-     WHERE ns_id = ? AND id = ?`
+     WHERE ns_id = ? AND id = ?`,
   ).run(state, reason, solution, nsId, nodeId);
 
-  dispatchNotifications(db, nsId, namespace, nodeId, prevState, state, prevEffective, reason, solution, legendumToken);
+  dispatchNotifications(
+    db,
+    nsId,
+    namespace,
+    nodeId,
+    prevState,
+    state,
+    prevEffective,
+    reason,
+    solution,
+    legendumToken,
+  );
 
   return new Response(null, { status: 204 });
 }
