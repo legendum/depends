@@ -142,6 +142,10 @@ export function dispatchNotifications(
       } | null;
 
       const baseUrl = process.env.BASE_URL ?? "https://depends.cc";
+      const title = `${namespace}/${affected.id} is ${affected.newEffective}`;
+      const body =
+        nodeData?.reason ?? `was ${affected.prevEffective ?? "unknown"}`;
+
       const payload: WebhookPayload = {
         event: "effective_state_changed",
         namespace,
@@ -153,6 +157,8 @@ export function dispatchNotifications(
         solution: nodeData?.solution ?? null,
         triggered_rule: rule.id,
         timestamp: new Date().toISOString(),
+        title,
+        body,
         ...(rule.ack_token
           ? { ack_url: `${baseUrl}/v1/ack/${rule.ack_token}` }
           : {}),

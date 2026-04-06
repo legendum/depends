@@ -10,6 +10,8 @@ export interface WebhookPayload {
   triggered_rule: string;
   timestamp: string;
   ack_url?: string;
+  title: string;
+  body: string;
 }
 
 export async function computeSignature(
