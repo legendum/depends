@@ -1,7 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import yaml from "js-yaml";
 import { api, errorMsg } from "../lib/api";
 import { type Config, getNamespace, parseCliArgs } from "../lib/config";
+import { readDependsYml } from "../lib/yaml";
 
 export async function cmdPush(config: Config, args: string[]) {
   const ns = getNamespace(config, args);
@@ -12,7 +13,7 @@ export async function cmdPush(config: Config, args: string[]) {
     process.exit(1);
   }
 
-  const content = readFileSync(filePath, "utf-8");
+  const content = readDependsYml(filePath);
   const spec = yaml.load(content) as { namespace?: string };
 
   if (spec?.namespace && spec.namespace !== ns) {

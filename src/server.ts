@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
-import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
 import type { AuthResult } from "./auth";
 import { createDb } from "./db";
+import { log } from "./lib/log";
 import { rateLimit } from "./ratelimit";
 import { ensureLocalToken, isLocalRequest } from "./server/middleware";
 import { registerNsRoutes } from "./server/routes/ns";
@@ -18,14 +18,6 @@ export {
 } from "./server/middleware";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
-
-const LOG_DIR = join(import.meta.dir, "..", "log");
-mkdirSync(LOG_DIR, { recursive: true });
-
-function logRequest(entry: Record<string, unknown>) {
-  const date = new Date().toISOString().slice(0, 10);
-  appendFileSync(join(LOG_DIR, `${date}.log`), `${JSON.stringify(entry)}\n`);
-}
 
 export function createApp(db: Database) {
   ensureLocalToken(db);
@@ -42,8 +34,7 @@ export function createApp(db: Database) {
       const a = (store as Record<string, unknown>).auth as
         | AuthResult
         | undefined;
-      logRequest({
-        ts: new Date().toISOString(),
+      log({
         tid: a?.tokenId ?? undefined,
         method: request.method,
         path: url.pathname,

@@ -1,3 +1,5 @@
+import { log } from "../lib/log";
+
 export interface WebhookPayload {
   event: string;
   namespace: string;
@@ -48,12 +50,18 @@ export async function sendWebhook(
     headers["X-Signature"] = await computeSignature(body, secret);
   }
 
+  let lastStatus: number | undefined;
+  let lastError: string | undefined;
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const res = await fetch(url, { method: "POST", headers, body });
       if (res.ok) return true;
-    } catch {
-      // Network error, retry
+      lastStatus = res.status;
+      lastError = undefined;
+    } catch (err) {
+      lastStatus = undefined;
+      lastError = err instanceof Error ? err.message : String(err);
     }
 
     if (attempt < maxRetries - 1) {
@@ -61,6 +69,16 @@ export async function sendWebhook(
       await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt * 2)));
     }
   }
+
+  log({
+    kind: "webhook_failed",
+    url,
+    namespace: payload.namespace,
+    node_id: payload.node_id,
+    triggered_rule: payload.triggered_rule,
+    status: lastStatus,
+    error: lastError,
+  });
 
   return false;
 }

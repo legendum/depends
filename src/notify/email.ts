@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { Eta } from "eta";
 import nodemailer from "nodemailer";
+import { log } from "../lib/log";
 import type { WebhookPayload } from "./webhook";
 
 const transporter = process.env.SMTP_HOST
@@ -31,7 +32,12 @@ export async function sendSignupEmail(
   token: string,
 ): Promise<void> {
   if (!transporter) {
-    console.error("[email] SMTP not configured, skipping signup email to", to);
+    log({
+      kind: "email_skipped",
+      reason: "smtp_not_configured",
+      to,
+      type: "signup",
+    });
     return;
   }
 
@@ -43,7 +49,12 @@ export async function sendSignupEmail(
       html: render("signup", { token }),
     });
   } catch (err) {
-    console.error("[email] Failed to send signup email to", to, err);
+    log({
+      kind: "email_failed",
+      type: "signup",
+      to,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -52,7 +63,14 @@ export async function sendEmail(
   payload: WebhookPayload,
 ): Promise<void> {
   if (!transporter) {
-    console.error("[email] SMTP not configured, skipping email to", to);
+    log({
+      kind: "email_skipped",
+      reason: "smtp_not_configured",
+      to,
+      type: "notification",
+      namespace: payload.namespace,
+      node_id: payload.node_id,
+    });
     return;
   }
 
@@ -73,6 +91,13 @@ export async function sendEmail(
       html: render("notification", payload),
     });
   } catch (err) {
-    console.error("[email] Failed to send to", to, err);
+    log({
+      kind: "email_failed",
+      type: "notification",
+      to,
+      namespace: payload.namespace,
+      node_id: payload.node_id,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
