@@ -54,6 +54,8 @@ function logRequest(entry: Record<string, unknown>) {
 function extractBearer(request: Request): string | Response {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
+    // In self-hosted mode, treat missing auth as the local token.
+    if (isSelfHosted()) return LOCAL_TOKEN;
     return Response.json({ error: "Missing authorization." }, { status: 401 });
   }
   return authHeader.slice(7);
@@ -66,7 +68,34 @@ const LOCALHOST_ADDRS = new Set([
   "localhost",
 ]);
 
+/**
+ * Self-hosted mode is the default for FOSS users: auth is bypassed,
+ * billing is skipped, and the server uses the well-known local token.
+ *
+ * Set `DEPENDS_BY_LEGENDUM=true` to enable hosted mode (depends.cc):
+ * full bearer-token auth, Legendum billing, account signup, etc.
+ */
+let byLegendumOverride: boolean | null = null;
+
+export function isByLegendum(): boolean {
+  if (byLegendumOverride !== null) return byLegendumOverride;
+  return process.env.DEPENDS_BY_LEGENDUM === "true";
+}
+
+export function isSelfHosted(): boolean {
+  return !isByLegendum();
+}
+
+/**
+ * Test helper: force hosted-mode on or off, ignoring the env var.
+ * Pass `null` to restore env-based detection.
+ */
+export function setByLegendum(value: boolean | null): void {
+  byLegendumOverride = value;
+}
+
 function isLocalRequest(request: Request, server: unknown): boolean {
+  if (isSelfHosted()) return true;
   const forwarded = request.headers.get("X-Forwarded-For");
   if (forwarded) {
     const clientIp = forwarded.split(",")[0].trim();
@@ -102,6 +131,15 @@ async function authenticateBasic(
   request: Request,
   isLocal: boolean,
 ): Promise<AuthResult | Response> {
+  // In self-hosted mode, skip Basic Auth entirely and auto-create the namespace.
+  if (isLocal && isSelfHosted()) {
+    db.query(
+      "INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)",
+    ).run(namespace);
+    const auth = await verifyToken(db, namespace, LOCAL_TOKEN, true);
+    if (auth) return auth;
+  }
+
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Basic ")) return basicAuthChallenge();
 
@@ -541,12 +579,18 @@ export function createApp(db: Database) {
           const bearer = extractBearer(request);
           if (bearer instanceof Response) return bearer;
           const local = isLocalRequest(request, server);
-          if (local && bearer === LOCAL_TOKEN) {
+          // In self-hosted mode, any token is accepted as the local token
+          // and the namespace is auto-created on first access.
+          // (Plain localhost requests without SELF_HOSTED still validate
+          // their bearer token normally.)
+          const selfHosted = isSelfHosted();
+          const effectiveBearer = selfHosted ? LOCAL_TOKEN : bearer;
+          if (selfHosted || (local && bearer === LOCAL_TOKEN)) {
             db.query(
               "INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)",
             ).run(ns);
           }
-          const a = await verifyToken(db, ns, bearer, local);
+          const a = await verifyToken(db, ns, effectiveBearer, local);
           if (!a)
             return Response.json({ error: "Invalid token." }, { status: 401 });
           (store as Record<string, unknown>).auth = a;

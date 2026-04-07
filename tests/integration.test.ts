@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
-import { createServer } from "../src/server";
+import { createServer, setByLegendum } from "../src/server";
 
 const legendum = require("../src/lib/legendum.js");
 legendum.mock({
@@ -17,6 +17,7 @@ let db: ReturnType<typeof createTestDb>;
 const NS = "test-ns";
 
 beforeAll(async () => {
+  setByLegendum(true);
   db = createTestDb();
   server = createServer(db, 0);
   baseUrl = `http://localhost:${server.port}/v1`;
@@ -32,6 +33,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   server.stop(true);
+  setByLegendum(null);
 });
 
 async function api(

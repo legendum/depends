@@ -73,7 +73,9 @@ function getNamespace(config: Config, args: string[]): string {
     return args[flagIdx + 1];
   }
 
-  // Try depends.yml in current directory
+  // Try depends.yml in current directory — read raw (no env substitution)
+  // since we only care about the namespace field and don't want to error
+  // out on unrelated ${VAR} references.
   if (existsSync("depends.yml")) {
     try {
       const spec = yaml.load(readFileSync("depends.yml", "utf-8")) as {
@@ -127,6 +129,29 @@ async function errorMsg(res: Response): Promise<string> {
   } catch {
     return text;
   }
+}
+
+// --- YAML loading ---
+
+/**
+ * Read depends.yml and substitute ${VAR} / ${VAR:-default} references with
+ * values from process.env. Unknown vars without a default cause a hard error.
+ */
+function readDependsYml(path = "depends.yml"): string {
+  const raw = readFileSync(path, "utf-8");
+  return raw.replace(
+    /\$\{([A-Z_][A-Z0-9_]*)(?::-([^}]*))?\}/g,
+    (_match, name: string, fallback: string | undefined) => {
+      const value = process.env[name];
+      if (value !== undefined && value !== "") return value;
+      if (fallback !== undefined) return fallback;
+      console.error(
+        `Error: environment variable ${name} is not set (referenced in ${path}).`,
+      );
+      console.error(`Use \${${name}:-default} to provide a fallback.`);
+      process.exit(1);
+    },
+  );
 }
 
 // --- Color helpers ---
@@ -554,7 +579,7 @@ async function cmdValidate() {
     process.exit(1);
   }
 
-  const content = readFileSync("depends.yml", "utf-8");
+  const content = readDependsYml();
   let spec: {
     namespace?: string;
     nodes?: Record<string, { depends_on?: string[] }>;
@@ -661,7 +686,7 @@ async function cmdDiff(config: Config, args: string[]) {
     process.exit(1);
   }
 
-  const localContent = readFileSync("depends.yml", "utf-8");
+  const localContent = readDependsYml();
   const localSpec = yaml.load(localContent) as {
     nodes?: Record<string, { label?: string; depends_on?: string[] }>;
   };
@@ -987,7 +1012,7 @@ async function cmdCheck(config: Config, args: string[]) {
     process.exit(1);
   }
 
-  const spec = yaml.load(readFileSync("depends.yml", "utf-8")) as {
+  const spec = yaml.load(readDependsYml()) as {
     namespace?: string;
     nodes?: Record<string, { meta?: { checks?: Check[] } }>;
   };
