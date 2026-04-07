@@ -2,12 +2,7 @@ import type { Database } from "bun:sqlite";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { Elysia } from "elysia";
-import {
-  type AuthResult,
-  LOCAL_TOKEN,
-  verifyToken,
-  verifyTokenOnly,
-} from "./auth";
+import { type AuthResult, LOCAL_TOKEN, verifyToken } from "./auth";
 import { createDb } from "./db";
 import { rateLimit } from "./ratelimit";
 import { render } from "./render";
@@ -137,7 +132,10 @@ async function authenticateBasic(
     db.query(
       "INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)",
     ).run(namespace);
-    const auth = await verifyToken(db, namespace, LOCAL_TOKEN, true);
+    const auth = await verifyToken(db, LOCAL_TOKEN, {
+      namespace,
+      isLocal: true,
+    });
     if (auth) return auth;
   }
 
@@ -150,7 +148,7 @@ async function authenticateBasic(
 
   const token = decoded.slice(colonIdx + 1);
 
-  const auth = await verifyToken(db, namespace, token, isLocal);
+  const auth = await verifyToken(db, token, { namespace, isLocal });
   if (!auth) return basicAuthChallenge();
   return auth;
 }
@@ -566,7 +564,7 @@ export function createApp(db: Database) {
       const bearer = extractBearer(request);
       if (bearer instanceof Response) return bearer;
       const local = isLocalRequest(request, server);
-      const a = await verifyTokenOnly(db, bearer, local);
+      const a = await verifyToken(db, bearer, { isLocal: local });
       if (!a)
         return Response.json({ error: "Invalid token." }, { status: 401 });
       return handleCreateNamespace(db, request, a.tokenId);
@@ -591,7 +589,10 @@ export function createApp(db: Database) {
               "INSERT OR IGNORE INTO namespaces (id, token_id) VALUES (?, 0)",
             ).run(ns);
           }
-          const a = await verifyToken(db, ns, effectiveBearer, local);
+          const a = await verifyToken(db, effectiveBearer, {
+            namespace: ns,
+            isLocal: local,
+          });
           if (!a)
             return Response.json({ error: "Invalid token." }, { status: 401 });
           (store as Record<string, unknown>).auth = a;

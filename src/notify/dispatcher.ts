@@ -1,9 +1,8 @@
 import type { Database } from "bun:sqlite";
 import { computeEffectiveState, getDownstreamNodes } from "../graph/effective";
+import { chargeBestEffort } from "../lib/charge";
 import { sendEmail } from "./email";
 import { sendWebhook, type WebhookPayload } from "./webhook";
-
-const legendum = require("../lib/legendum.js");
 
 interface NotificationRule {
   ns_id: number;
@@ -26,19 +25,6 @@ function ruleMatchesState(rule: NotificationRule, state: string): boolean {
 
 function ruleMatchesNode(rule: NotificationRule, nodeId: string): boolean {
   return rule.watch === "*" || rule.watch === nodeId;
-}
-
-async function chargeNotification(
-  legendumToken: string | null,
-  amount: number,
-  description: string,
-): Promise<void> {
-  if (!legendumToken) return;
-  try {
-    await legendum.charge(legendumToken, amount, description);
-  } catch {
-    // best-effort — don't block notifications on charge failure
-  }
 }
 
 export function dispatchNotifications(
@@ -166,11 +152,11 @@ export function dispatchNotifications(
 
       if (rule.url) {
         sendWebhook(rule.url, payload, rule.secret);
-        chargeNotification(lt, 2, `webhook: ${namespace}/${affected.id}`);
+        chargeBestEffort(lt, 2, `webhook: ${namespace}/${affected.id}`);
       }
       if (rule.email) {
         sendEmail(rule.email, payload);
-        chargeNotification(lt, 2, `email: ${namespace}/${affected.id}`);
+        chargeBestEffort(lt, 2, `email: ${namespace}/${affected.id}`);
       }
 
       if (rule.ack) {

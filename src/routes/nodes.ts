@@ -2,9 +2,8 @@ import type { Database } from "bun:sqlite";
 import { parseTtl } from "../db";
 import { wouldCreateCycle } from "../graph/cycle";
 import { computeEffectiveState } from "../graph/effective";
+import { chargeCredits } from "../lib/charge";
 import { dispatchNotifications } from "../notify/dispatcher";
-
-const legendum = require("../lib/legendum.js");
 
 interface NodeBody {
   state?: string;
@@ -15,26 +14,6 @@ interface NodeBody {
   depends_on?: string[];
   ttl?: string | null;
   meta?: Record<string, unknown>;
-}
-
-async function chargeCredits(
-  legendumToken: string | null,
-  amount: number,
-  description: string,
-): Promise<Response | null> {
-  if (!legendumToken) return null; // local mode, no charge
-  try {
-    await legendum.charge(legendumToken, amount, description);
-    return null;
-  } catch (err: any) {
-    if (err.code === "insufficient_funds") {
-      return Response.json(
-        { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
-        { status: 402 },
-      );
-    }
-    throw err;
-  }
 }
 
 export async function handlePutNode(

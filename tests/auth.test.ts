@@ -1,10 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  generateToken,
-  hashToken,
-  verifyToken,
-  verifyTokenOnly,
-} from "../src/auth";
+import { generateToken, hashToken, verifyToken } from "../src/auth";
 import { createTestDb } from "../src/db";
 
 describe("auth", () => {
@@ -45,7 +40,7 @@ describe("auth", () => {
       tokenId,
     );
 
-    const result = await verifyToken(db, "myns", token);
+    const result = await verifyToken(db, token, { namespace: "myns" });
     expect(result).not.toBeNull();
     expect(result!.tokenId).toBe(Number(tokenId));
     expect(result!.nsId).toBeGreaterThan(0);
@@ -67,7 +62,7 @@ describe("auth", () => {
       tokenId,
     );
 
-    const result = await verifyToken(db, "myns", token);
+    const result = await verifyToken(db, token, { namespace: "myns" });
     expect(result).not.toBeNull();
     expect(result!.legendumToken).toBe("lt_abc");
     db.close();
@@ -84,7 +79,9 @@ describe("auth", () => {
       tokenId,
     );
 
-    expect(await verifyToken(db, "myns", "dep_wrong")).toBeNull();
+    expect(
+      await verifyToken(db, "dep_wrong", { namespace: "myns" }),
+    ).toBeNull();
     db.close();
   });
 
@@ -99,17 +96,21 @@ describe("auth", () => {
       tokenId,
     );
 
-    expect(await verifyToken(db, "other-ns", "dep_correct2")).toBeNull();
+    expect(
+      await verifyToken(db, "dep_correct2", { namespace: "other-ns" }),
+    ).toBeNull();
     db.close();
   });
 
   test("verifyToken returns null for non-existent namespace", async () => {
     const db = createTestDb();
-    expect(await verifyToken(db, "nope", "dep_anything")).toBeNull();
+    expect(
+      await verifyToken(db, "dep_anything", { namespace: "nope" }),
+    ).toBeNull();
     db.close();
   });
 
-  test("verifyTokenOnly returns result without namespace check", async () => {
+  test("verifyToken without namespace returns token info only", async () => {
     const db = createTestDb();
     const token = "dep_only";
     const hash = await hashToken(token);
@@ -117,16 +118,16 @@ describe("auth", () => {
       .query("INSERT INTO tokens (token_hash) VALUES (?)")
       .run(hash);
 
-    const result = await verifyTokenOnly(db, token);
+    const result = await verifyToken(db, token);
     expect(result).not.toBeNull();
     expect(result!.tokenId).toBe(Number(tokenId));
     expect(result!.legendumToken).toBeNull();
     db.close();
   });
 
-  test("verifyTokenOnly returns null for bad token", async () => {
+  test("verifyToken without namespace returns null for bad token", async () => {
     const db = createTestDb();
-    expect(await verifyTokenOnly(db, "dep_nope")).toBeNull();
+    expect(await verifyToken(db, "dep_nope")).toBeNull();
     db.close();
   });
 
@@ -149,8 +150,8 @@ describe("auth", () => {
       tokId2,
     );
 
-    const r1 = await verifyToken(db, "api", token1);
-    const r2 = await verifyToken(db, "api", token2);
+    const r1 = await verifyToken(db, token1, { namespace: "api" });
+    const r2 = await verifyToken(db, token2, { namespace: "api" });
     expect(r1).not.toBeNull();
     expect(r2).not.toBeNull();
     expect(r1!.nsId).not.toBe(r2!.nsId);

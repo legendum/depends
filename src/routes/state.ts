@@ -1,31 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
-import { chargeStateWrite } from "../lib/tab";
+import { chargeCredits, chargeStateWrite } from "../lib/charge";
 import { dispatchNotifications } from "../notify/dispatcher";
 
-const legendum = require("../lib/legendum.js");
-
 const VALID_STATES = ["green", "yellow", "red"] as const;
-
-async function chargeCredits(
-  legendumToken: string | null,
-  amount: number,
-  description: string,
-): Promise<Response | null> {
-  if (!legendumToken) return null;
-  try {
-    await legendum.charge(legendumToken, amount, description);
-    return null;
-  } catch (err: any) {
-    if (err.code === "insufficient_funds") {
-      return Response.json(
-        { error: "Insufficient credits. Buy more at legendum.co.uk/account" },
-        { status: 402 },
-      );
-    }
-    throw err;
-  }
-}
 
 export async function handlePutState(
   db: Database,
