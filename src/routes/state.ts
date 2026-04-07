@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { computeEffectiveState } from "../graph/effective";
+import { chargeStateWrite } from "../lib/tab";
 import { dispatchNotifications } from "../notify/dispatcher";
 
 const legendum = require("../lib/legendum.js");
@@ -69,11 +70,7 @@ export async function handlePutState(
       "INSERT INTO nodes (ns_id, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))",
     ).run(nsId, nodeId, state, reason, solution);
 
-    const writeErr = await chargeCredits(
-      legendumToken,
-      1,
-      `state write: ${namespace}/${nodeId}`,
-    );
+    const writeErr = await chargeStateWrite(legendumToken);
     if (writeErr) return writeErr;
 
     dispatchNotifications(
@@ -96,22 +93,14 @@ export async function handlePutState(
       "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE ns_id = ? AND id = ?",
     ).run(reason, solution, nsId, nodeId);
 
-    const writeErr = await chargeCredits(
-      legendumToken,
-      1,
-      `state write: ${namespace}/${nodeId}`,
-    );
+    const writeErr = await chargeStateWrite(legendumToken);
     if (writeErr) return writeErr;
 
     return new Response(null, { status: 204 });
   }
 
   // State change — charge for state write
-  const writeErr = await chargeCredits(
-    legendumToken,
-    1,
-    `state write: ${namespace}/${nodeId}`,
-  );
+  const writeErr = await chargeStateWrite(legendumToken);
   if (writeErr) return writeErr;
 
   const prevState = existing.state;
