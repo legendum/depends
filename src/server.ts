@@ -72,14 +72,15 @@ const LOCALHOST_ADDRS = new Set([
  * Self-hosted mode is the default for FOSS users: auth is bypassed,
  * billing is skipped, and the server uses the well-known local token.
  *
- * Set `DEPENDS_BY_LEGENDUM=true` to enable hosted mode (depends.cc):
- * full bearer-token auth, Legendum billing, account signup, etc.
+ * Hosted mode (depends.cc) is enabled automatically when `LEGENDUM_API_KEY`
+ * is set in the environment — full bearer-token auth, Legendum billing,
+ * account signup, etc.
  */
 let byLegendumOverride: boolean | null = null;
 
 export function isByLegendum(): boolean {
   if (byLegendumOverride !== null) return byLegendumOverride;
-  return process.env.DEPENDS_BY_LEGENDUM === "true";
+  return !!process.env.LEGENDUM_API_KEY;
 }
 
 export function isSelfHosted(): boolean {
