@@ -18,7 +18,7 @@ import {
 import { join } from "node:path";
 import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
-import { createServer } from "../src/server";
+import { createServer, setByLegendum } from "../src/server";
 
 const legendum = require("../src/lib/legendum.js");
 legendum.mock({
@@ -35,6 +35,7 @@ const NS = "cli-test";
 const tmpDir = join(import.meta.dir, ".cli-test-tmp");
 
 beforeAll(async () => {
+  setByLegendum(true);
   const db = createTestDb();
   server = createServer(db, 0);
   baseUrl = `http://localhost:${server.port}/v1`;
@@ -98,6 +99,7 @@ beforeAll(async () => {
 afterAll(() => {
   server.stop(true);
   if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true });
+  setByLegendum(null);
 });
 
 // Helper to run CLI command
@@ -106,7 +108,7 @@ async function cli(
   opts: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   const proc = Bun.spawn(
-    ["bun", "run", join(import.meta.dir, "../src/cli.ts"), ...args],
+    ["bun", "run", join(import.meta.dir, "../src/cli/main.ts"), ...args],
     {
       cwd: opts.cwd ?? tmpDir,
       env: {

@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "depends": "src/cli.ts"
+    "depends": "src/cli/main.ts"
   },
   "scripts": {
     "dev": "bun run --watch src/server.ts",
     "start": "bun run src/server.ts",
-    "cli": "bun run src/cli.ts",
+    "cli": "bun run src/cli/main.ts",
     "test": "bun test",
     "lint": "biome check .",
     "lint:fix": "biome check --write ."
