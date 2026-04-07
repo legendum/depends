@@ -25,6 +25,8 @@ bun install
 # Restart the server (e.g. systemctl restart depends)
 ```
 
+No signup, auth, or billing setup is required in self-hosted mode — just make sure `LEGENDUM_API_KEY` is **not** set in the server's environment. If you're migrating an existing hosted deployment down to self-hosted, unset that variable and restart; existing namespaces/nodes/events remain intact.
+
 ## Database migrations
 
 depends.cc uses SQLite. The schema is applied on startup via `CREATE TABLE IF NOT EXISTS`, so new tables are added automatically.

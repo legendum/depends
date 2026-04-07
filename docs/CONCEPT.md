@@ -28,15 +28,43 @@ Nodes can **depend on** other nodes. A node's **effective state** is the worst o
 
 ## API Design
 
-Base URL: `https://depends.cc/v1`
+Base URL: `https://depends.cc/v1` (hosted), or `http://localhost:3000/v1` (self-hosted default).
 
-Authentication: Bearer token per namespace.
+### Modes
+
+depends.cc runs in one of two modes, auto-detected at startup from the environment:
+
+- **Self-hosted** (default, when `LEGENDUM_API_KEY` is *not* set): no authentication, no billing, no signup. Any request is accepted as the well-known local token. Namespaces are auto-created on first access. The `Authorization` header is optional and ignored.
+- **Hosted** (when `LEGENDUM_API_KEY` *is* set): full bearer-token authentication, per-account billing via Legendum, signup flow.
+
+The API surface is identical in both modes; the difference is only in auth and billing.
+
+### Authentication (hosted mode)
+
+Bearer token per account: `Authorization: Bearer dep_...`. A single token grants access to all namespaces owned by that account. Tokens are obtained via `POST /v1/signup` and stored as hashes — depends.cc cannot recover a lost token.
+
+### Signup (hosted mode only)
+
+```
+POST /v1/signup     — Create an account and receive an API token by email
+```
+
+```json
+{
+  "email": "you@example.com",
+  "account_key": "lak_..."
+}
+```
+
+The `account_key` is a Legendum account key (`lak_...`) obtained from [legendum.co.uk](https://legendum.co.uk/account). depends.cc links the key to the service, generates a `dep_...` token, and emails it to the address on file. The response confirms the account was created but does not include the token.
+
+In self-hosted mode this endpoint is unused — there is no signup, and any request is already authorised.
 
 ### Namespaces
 
 ```
-POST   /namespaces                            — Create a namespace, returns token
-DELETE /namespaces/{namespace}                 — Delete a namespace and all its data
+POST   /namespaces                            — Create a namespace (auth required in hosted mode)
+DELETE /namespaces/{namespace}                — Delete a namespace and all its data
 ```
 
 #### POST /namespaces
@@ -45,16 +73,9 @@ DELETE /namespaces/{namespace}                 — Delete a namespace and all it
 { "id": "acme" }
 ```
 
-Returns:
+Returns `201 Created` on success, `409 Conflict` if the namespace already exists on this account. Unlike earlier drafts, the response does **not** include a token — the token is the one you already hold from signup, and it covers every namespace you create.
 
-```json
-{
-  "id": "acme",
-  "token": "dep_a1b2c3..."
-}
-```
-
-The token is shown **once**. It's stored as a hash — depends.cc cannot recover it. Treat it like a password.
+In self-hosted mode, namespaces are also auto-created on first access, so calling this endpoint is optional.
 
 ### Nodes
 
@@ -249,7 +270,7 @@ depends.cc sends a `POST` to the URL with:
 Headers:
 - `X-Signature`: HMAC-SHA256 of the body using the `secret`, for authenticity verification.
 
-On non-2xx response: retries 3 times with exponential backoff (~5 minutes total), then logs failure and stops.
+On non-2xx response or network error: retries 3 times with exponential backoff (1s, then 4s between attempts), then logs a `webhook_failed` entry to `log/YYYY-MM-DD.log` and stops. Notification dispatch never blocks on webhook delivery — state writes succeed even if the webhook is unreachable.
 
 #### Email (built-in convenience)
 
@@ -265,7 +286,11 @@ depends.cc also supports email notifications as syntactic sugar. Just use `"emai
 }
 ```
 
-A rule has either `"url"` (webhook) or `"email"` (built-in), never both. Under the hood, email is implemented as an internal webhook — the notification system is always webhooks. The email contains the same payload a webhook would receive, formatted as a human-readable message with a link to the graph.
+A rule has either `"url"` (webhook) or `"email"`, never both. Webhooks are delivered via HTTP POST with HMAC signing; emails are delivered via SMTP using `nodemailer` (configured via `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`). Both carry the same payload shape — the email just renders it as a human-readable message with a link to the graph.
+
+Webhook retries: 3 attempts with exponential backoff (1s, then 4s). Failures after the last attempt are logged as `webhook_failed` entries in `log/YYYY-MM-DD.log` and the notification is dropped — depends.cc never queues failed deliveries for later retry. Email failures are logged as `email_failed` entries in the same file.
+
+`depends.yml` values for `url` (and `secret`) support `${VAR}` and `${VAR:-default}` expansion from the environment on push. An unset variable with no default fails the push, so a literal `${ALERTING_WEBHOOK_URL}` can never be silently stored as a rule URL.
 
 ## YAML Spec Format
 
@@ -341,15 +366,24 @@ On import, depends.cc reconciles the YAML against the current state:
 A command-line tool for working with `depends.yml` files and the depends.cc service.
 
 ```
-depends init                      — Create a depends.yml in the current directory
-depends push                      — Deploy depends.yml to depends.cc
-depends pull                      — Download the current graph as depends.yml
-depends status                    — Show all node states (with effective states)
-depends status <node-id>          — Show a single node and its upstream/downstream
-depends set <node-id> <state>     — Set a node's state (green/yellow/red)
-depends graph                     — Print the dependency graph (ASCII tree)
-depends validate                  — Check depends.yml for cycles, missing refs, etc.
-depends diff                      — Show what would change on push
+depends serve [-p <port>]               — Run the server locally (self-hosted)
+depends signup <email> <lak_...>        — Create a hosted account (emails you a token)
+depends init                            — Create a depends.yml in the current directory
+depends push [--prune]                  — Upload depends.yml (auto-creates namespace)
+depends pull                            — Download the current graph as depends.yml
+depends show                            — Print the current spec (YAML) without saving
+depends status [<node-id>]              — Show node states (color-coded)
+depends set [<ns>/]<node-id> <state>    — Set a node's state (green/yellow/red)
+depends graph                           — Print the dependency tree (ASCII)
+depends events [<ns/node>]              — Show recent state changes
+depends validate                        — Check depends.yml for errors
+depends delete                          — Delete a namespace and all its data
+depends usage                           — Show usage stats for current billing period
+depends check [--dry-run]               — Run meta.checks and update state
+depends diff                            — Show what would change on push
+depends update                          — Update to the latest version
+depends admin tokens                    — List all tokens (server admin)
+depends admin plan <email> [plan]       — Show or set plan for an email
 ```
 
 Install via the install script:
@@ -364,11 +398,13 @@ Configuration in `~/.config/depends/config.yml`:
 
 ```yaml
 default_namespace: myproject
-token: dep_...
-api_url: https://depends.cc/v1   # default, overridable for self-hosted
+token: dep_...                    # omit in self-hosted mode
+api_url: https://depends.cc/v1    # override to e.g. http://localhost:3000/v1 for self-hosted
 ```
 
-Or via environment variables: `DEPENDS_TOKEN`, `DEPENDS_NAMESPACE`.
+Or via environment variables: `DEPENDS_TOKEN`, `DEPENDS_NAMESPACE`, `DEPENDS_API_URL`, `DEPENDS_CONFIG` (path to a non-default config file).
+
+`depends.yml` itself supports environment variable expansion on push — `${VAR}` and `${VAR:-default}` references are substituted from `process.env` when the CLI reads the file (see `src/cli/lib/yaml.ts`). An unset variable with no default causes `depends push` (and `validate`, `diff`, `check`) to exit with an error, so you can safely reference secrets like `${ALERTING_WEBHOOK_URL}` in committed YAML.
 
 ### Workflow
 
@@ -387,10 +423,19 @@ Services push their own state to depends.cc. When something goes red, a webhook 
 ### Setup
 
 ```bash
-# Create a namespace
-DEPENDS_TOKEN=$(curl -s -X POST https://depends.cc/v1/namespaces \
+# Sign up (hosted mode) — the token is emailed to the address Legendum has on file.
+# You only do this once per account. In self-hosted mode, skip this step entirely.
+curl -s -X POST https://depends.cc/v1/signup \
   -H "Content-Type: application/json" \
-  -d '{"id": "myproject"}' | jq -r '.token')
+  -d '{"email": "you@example.com", "account_key": "lak_..."}'
+
+export DEPENDS_TOKEN=dep_...    # from the email
+
+# Create a namespace under your account
+curl -s -X POST https://depends.cc/v1/namespaces \
+  -H "Authorization: Bearer $DEPENDS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "myproject"}'
 
 # Define the graph structure (or use `depends push` with a YAML file)
 curl -X PUT https://depends.cc/v1/nodes/myproject/api-server \
@@ -475,73 +520,93 @@ WAL mode allows multiple Bun processes to read the database concurrently while o
 
 ### Schema
 
+The canonical schema lives in [`src/db.ts`](../src/db.ts). Reproduced here for reference — if the two ever disagree, trust the source.
+
 ```sql
 PRAGMA journal_mode=WAL;
 PRAGMA busy_timeout=5000;
 PRAGMA foreign_keys=ON;
 
+-- Accounts. In self-hosted mode a single row with id=0 represents the
+-- local token; in hosted mode each signup creates a row.
+CREATE TABLE tokens (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_hash      TEXT NOT NULL UNIQUE,
+  email           TEXT,
+  legendum_token  TEXT,          -- opaque Legendum service token (hosted mode)
+  meta            TEXT DEFAULT '{}',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Namespaces are owned by a token. The same namespace id can exist under
+-- different tokens without colliding.
 CREATE TABLE namespaces (
-  id          TEXT PRIMARY KEY,
-  token_hash  TEXT NOT NULL,
-  plan        TEXT NOT NULL DEFAULT 'free' CHECK (plan IN ('free', 'pro', 'team', 'enterprise')),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  ns_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  id          TEXT NOT NULL,
+  token_id    INTEGER NOT NULL REFERENCES tokens(id) ON DELETE CASCADE,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(token_id, id)
 );
 
 CREATE TABLE nodes (
-  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
-  id          TEXT NOT NULL,
-  label       TEXT,
-  state       TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
-  meta        TEXT,  -- JSON
-  reason      TEXT,
-  solution    TEXT,
-  ttl         INTEGER,  -- seconds; null = no TTL
+  ns_id            INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
+  id               TEXT NOT NULL,
+  label            TEXT,
+  state            TEXT NOT NULL DEFAULT 'yellow' CHECK (state IN ('green', 'yellow', 'red')),
+  default_state    TEXT CHECK (default_state IN ('green', 'yellow', 'red')),
+  meta             TEXT,
+  reason           TEXT,
+  solution         TEXT,
+  ttl              INTEGER,       -- seconds; null = no TTL
+  last_state_write TEXT,          -- last successful state PUT (used for TTL/usage)
   state_changed_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  PRIMARY KEY (namespace, id)
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (ns_id, id)
 );
 
 CREATE TABLE edges (
-  namespace   TEXT NOT NULL,
-  from_node   TEXT NOT NULL,
-  to_node     TEXT NOT NULL,
-  PRIMARY KEY (namespace, from_node, to_node),
-  FOREIGN KEY (namespace, from_node) REFERENCES nodes(namespace, id) ON DELETE CASCADE,
-  FOREIGN KEY (namespace, to_node) REFERENCES nodes(namespace, id) ON DELETE CASCADE
+  ns_id     INTEGER NOT NULL,
+  from_node TEXT NOT NULL,
+  to_node   TEXT NOT NULL,
+  PRIMARY KEY (ns_id, from_node, to_node),
+  FOREIGN KEY (ns_id, from_node) REFERENCES nodes(ns_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (ns_id, to_node)   REFERENCES nodes(ns_id, id) ON DELETE CASCADE
 );
 
 CREATE TABLE notification_rules (
-  namespace   TEXT NOT NULL REFERENCES namespaces(id) ON DELETE CASCADE,
-  id          TEXT NOT NULL,
-  watch       TEXT NOT NULL DEFAULT '*',
-  on_state    TEXT NOT NULL DEFAULT 'red',  -- "red", "green", "yellow", "red,green", or "*"
-  url         TEXT,            -- webhook URL (mutually exclusive with email)
-  email       TEXT,            -- email address (mutually exclusive with url)
-  secret      TEXT,            -- HMAC secret (webhooks only)
-  ack         INTEGER NOT NULL DEFAULT 0,  -- when true, auto-suppresses after firing
-  suppressed  INTEGER NOT NULL DEFAULT 0,  -- set to 1 after firing (if ack=1), reset by POST .../ack
+  ns_id         INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
+  id            TEXT NOT NULL,
+  watch         TEXT NOT NULL DEFAULT '*',
+  on_state      TEXT NOT NULL DEFAULT 'red',  -- "red", "green", "yellow", "red,green", or "*"
+  url           TEXT,
+  email         TEXT,
+  secret        TEXT,                          -- HMAC secret (webhooks)
+  ack           INTEGER NOT NULL DEFAULT 0,    -- when true, auto-suppresses after firing
+  ack_token     TEXT,                          -- opaque token used in the unauthenticated ack URL
+  suppressed    INTEGER NOT NULL DEFAULT 0,    -- set to 1 after firing (if ack=1), reset via /v1/ack/:token
   last_fired_at TEXT,
   CHECK (url IS NOT NULL OR email IS NOT NULL),
-  CHECK (url IS NULL OR email IS NULL),
-  PRIMARY KEY (namespace, id)
+  PRIMARY KEY (ns_id, id)
 );
 
--- Every state transition is logged. Foundation for billing, debugging, and history.
+-- Every state transition is logged. Foundation for usage counters and history.
 CREATE TABLE events (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  namespace   TEXT NOT NULL,
-  node_id     TEXT NOT NULL,
-  previous_state TEXT,          -- null on first write
-  new_state   TEXT NOT NULL,
+  id                       INTEGER PRIMARY KEY AUTOINCREMENT,
+  ns_id                    INTEGER NOT NULL REFERENCES namespaces(ns_id) ON DELETE CASCADE,
+  node_id                  TEXT NOT NULL,
+  previous_state           TEXT,            -- null on first write
+  new_state                TEXT NOT NULL,
   previous_effective_state TEXT,
-  new_effective_state TEXT NOT NULL,
-  reason      TEXT,
-  solution    TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  new_effective_state      TEXT NOT NULL,
+  reason                   TEXT,
+  solution                 TEXT,
+  created_at               TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_events_namespace ON events(namespace, created_at);
-CREATE INDEX idx_events_node ON events(namespace, node_id, created_at);
+CREATE INDEX idx_events_ns      ON events(ns_id, created_at);
+CREATE INDEX idx_events_node    ON events(ns_id, node_id, created_at);
+CREATE INDEX idx_events_node_id ON events(ns_id, node_id, id);
+CREATE INDEX idx_edges_to_node  ON edges(ns_id, to_node);
 ```
 
 ### Project Structure
@@ -549,30 +614,42 @@ CREATE INDEX idx_events_node ON events(namespace, node_id, created_at);
 ```
 depends/
 ├── src/
-│   ├── server.ts            — Bun HTTP server, route dispatch
-│   ├── db.ts                — SQLite connection, migrations, WAL setup
-│   ├── routes/
-│   │   ├── nodes.ts         — /nodes endpoints
-│   │   ├── state.ts         — /state shorthand endpoint
-│   │   ├── graph.ts         — /graph endpoints, YAML export
-│   │   └── notifications.ts — /notifications endpoints
+│   ├── server.ts             — Bun HTTP server entry point
+│   ├── db.ts                 — SQLite connection, schema, WAL setup
+│   ├── auth.ts               — Token generation, hashing, verification
+│   ├── ratelimit.ts          — Per-IP rate limiting (hosted mode)
+│   ├── server/
+│   │   ├── middleware.ts     — Mode detection, auth, local-request helpers
+│   │   └── routes/           — Route registration (v1, public, namespaces)
+│   ├── routes/               — Route handlers (nodes, state, graph, events,
+│   │                           notifications, namespaces, usage)
 │   ├── graph/
-│   │   ├── effective.ts     — Effective state computation (DAG traversal)
-│   │   ├── cycle.ts         — Cycle detection on edge insert
-│   │   └── yaml.ts          — YAML import/export, reconciliation
+│   │   ├── effective.ts      — Effective state computation (DAG traversal)
+│   │   ├── cycle.ts          — Cycle detection
+│   │   └── yaml.ts           — YAML import/export, reconciliation
 │   ├── notify/
-│   │   ├── dispatcher.ts    — Notification evaluation and dispatch
-│   │   └── webhook.ts       — Webhook sender with HMAC signing & retries
-│   ├── auth.ts              — Bearer token verification
-│   └── mcp/
-│       └── server.ts        — MCP server tool definitions
-├── cli/
-│   └── depends.ts           — CLI entry point (depends push/pull/status/etc.)
-├── depends.db               — SQLite database (gitignored)
+│   │   ├── dispatcher.ts     — Notification evaluation and dispatch
+│   │   ├── webhook.ts        — Webhook sender (HMAC, retries, failure logging)
+│   │   └── email.ts          — SMTP sender via nodemailer
+│   ├── lib/
+│   │   ├── charge.ts         — Legendum billing wrapper (local credit tab)
+│   │   ├── legendum.js       — Legendum SDK (vendored; excluded from lint)
+│   │   └── log.ts            — Shared JSON-line logger (writes log/YYYY-MM-DD.log)
+│   └── cli/
+│       ├── main.ts           — CLI entry point (`depends` command)
+│       ├── commands/         — Subcommands: push, pull, check, diff, …
+│       └── lib/              — Config loading, YAML env-var expansion, API helper
+├── views/                    — Eta templates (HTML pages + email templates)
+├── data/
+│   └── depends.db            — SQLite database (gitignored)
+├── log/                      — Daily JSON-line access and error logs (gitignored)
+├── tests/                    — Bun test suite
+├── biome.json                — Linter/formatter config
 ├── package.json
-├── tsconfig.json
 └── docs/
-    └── CONCEPT.md
+    ├── CONCEPT.md            — This file
+    ├── DEPLOY.md             — Deployment guide
+    └── UPDATES.md            — Upgrade and migration guide
 ```
 
 ### Why Bun + SQLite
@@ -593,23 +670,25 @@ depends/
 
 ## Billing
 
-Billing is based on **monthly active nodes** — a node counts as active if it received at least one state write that month. This is predictable for users ("I have 30 nodes, I know what I'll pay") and scales naturally.
+depends.cc bills per action, in whole Legendum credits. Billing is applied only in **hosted mode** (when `LEGENDUM_API_KEY` is set). Self-hosted deployments skip all charges — every `chargeCredits` / `chargeStateWrite` short-circuits when the account's `legendum_token` is null.
 
-| Tier       | Nodes  | Events/month | Price        |
-|------------|--------|-------------|--------------|
-| Free       | 10     | 100         | $0           |
-| Pro        | 500    | 50,000      | $19/mo       |
-| Team       | 5,000  | 500,000     | $49/mo       |
-| Enterprise | Custom | Custom      | Contact us   |
+| Action | Cost | When it's charged |
+|---|---|---|
+| Node create | 1 credit | Immediately, on the request that creates the node (`POST /nodes` or the auto-create path of `PUT /state`) |
+| State write | 0.1 credit | Accumulated on a local tab; flushed to Legendum as an integer charge once the tab reaches the flush threshold |
+| Webhook delivery | 2 credits | Best-effort, immediately, per successful dispatch attempt (charge failures don't block the webhook) |
+| Email delivery | 2 credits | Best-effort, immediately, per successful send |
+| Graph import | 1 credit per new node | One aggregated charge on `PUT /graph` before the transaction runs |
 
-Limits are enforced on write. When a namespace exceeds its plan:
-- Creating a node beyond the limit returns `402 Payment Required`
-- State writes beyond the event limit return `402 Payment Required`
-- Reads, graph queries, and existing webhooks continue to work — we never break visibility
+Insufficient funds for a node create or a state-write flush returns `402 Payment Required` with a body pointing at `legendum.co.uk/account`. Reads, graph queries, and event history continue to work regardless of balance — we never break visibility.
 
-The `events` table is the source of truth for metering — count rows and distinct `(namespace, node_id)` pairs within the billing period.
+### How the state-write tab works
 
-Usage is queryable:
+Legendum's `/api/charge` endpoint only accepts positive integer amounts, so depends.cc keeps a per-token in-memory tab (`src/lib/charge.ts`) that adds `0.1` per state write. Once `tab.total` reaches the flush threshold (currently `2`), depends.cc POSTs `Math.floor(tab.total)` to Legendum as a single integer charge and carries the fractional remainder forward. In steady state this means roughly **one Legendum API call per 20 state writes**. On graceful shutdown, `flushAllTabs()` charges `Math.round(tab.total)` (dropping anything below 0.5). If a charge fails for a reason other than `insufficient_funds`, the failed amount is rolled back onto the tab so no credits are silently lost.
+
+The events table is still the source of truth for usage counters (it is not used to compute charges — it's an audit trail).
+
+### Usage endpoint
 
 ```
 GET /usage/{namespace}
@@ -617,11 +696,15 @@ GET /usage/{namespace}
 
 ```json
 {
+  "email": "ops@example.com",
   "namespace": "acme",
-  "period": "2026-03",
-  "active_nodes": 28,
+  "period": "2026-04",
+  "nodes": 28,
+  "active_nodes": 14,
   "total_events": 1423,
   "webhook_deliveries": 47,
   "emails_sent": 3
 }
 ```
+
+`active_nodes` counts distinct `node_id`s that received a state write this calendar month; `nodes` is the total row count in the `nodes` table regardless of activity; `email` is the account email from the `tokens` row (null in self-hosted mode).
