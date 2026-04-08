@@ -7,7 +7,7 @@ import { readDependsYml } from "../lib/yaml";
 
 interface Check {
   url: string;
-  grep: string;
+  grep: string | string[];
 }
 
 interface CheckResult {
@@ -16,7 +16,7 @@ interface CheckResult {
   failures: string[];
 }
 
-async function runChecks(
+export async function runChecks(
   nodeId: string,
   checks: Check[],
 ): Promise<CheckResult> {
@@ -32,8 +32,11 @@ async function runChecks(
         continue;
       }
       const body = await res.text();
-      if (!body.includes(check.grep)) {
-        failures.push(`${check.url} missing "${check.grep}"`);
+      const greps = Array.isArray(check.grep) ? check.grep : [check.grep];
+      for (const g of greps) {
+        if (!body.includes(g)) {
+          failures.push(`${check.url} missing "${g}"`);
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
