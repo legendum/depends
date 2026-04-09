@@ -12,6 +12,7 @@ export const DOCS_JSON = {
         "Set state (green/yellow/red)",
       graph: "Print dependency tree",
       validate: "Check depends.yml for errors and cycles",
+      "check [--dry-run]": "Run meta.checks HTTP probes and update node state",
       diff: "Show what would change on push",
       delete: "Delete namespace and all its data",
     },

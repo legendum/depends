@@ -6,7 +6,7 @@
   .method.post { color: #2196f3; }
   .method.delete { color: var(--red); }
   table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; font-size: 0.9rem; }
-  th, td { text-align: left; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
+  th, td { text-align: left; vertical-align: top; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--border); }
   th { font-weight: 600; }
   .config-block h3 { margin-bottom: 0.5rem; }
 </style>
@@ -33,6 +33,7 @@
     <tr><td><code>depends events [&lt;ns/node&gt;]</code></td><td>Show recent state changes (supports <code>--json</code>, <code>--limit</code>)</td></tr>
     <tr><td><code>depends usage</code></td><td>Show usage stats for current billing period</td></tr>
     <tr><td><code>depends validate</code></td><td>Check <code>depends.yml</code> for errors and cycles</td></tr>
+    <tr><td><code>depends check [--dry-run]</code></td><td>Run <code>meta.checks</code> HTTP probes and update node state (for cron)</td></tr>
     <tr><td><code>depends diff</code></td><td>Show what would change on push</td></tr>
     <tr><td><code>depends delete [-n &lt;ns&gt;]</code></td><td>Delete a namespace and all its data</td></tr>
     <tr><td><code>depends update</code></td><td>Update to the latest version</td></tr>
@@ -49,6 +50,7 @@
     <tr><td><code>--json</code></td><td>Output as JSON (with <code>status</code>, <code>events</code>)</td></tr>
     <tr><td><code>--limit &lt;n&gt;</code></td><td>Number of events to show (default: 20, with <code>events</code>)</td></tr>
     <tr><td><code>--prune</code></td><td>Remove nodes not in YAML (with <code>push</code>)</td></tr>
+    <tr><td><code>--dry-run</code></td><td>Print probe results without writing state (with <code>check</code>)</td></tr>
   </table>
 </div>
 
@@ -124,9 +126,22 @@ notifications:
     <tr><td><code>depends_on</code></td><td>string[]</td><td>List of node IDs this node depends on. Referenced nodes are auto-created if they don't exist.</td></tr>
     <tr><td><code>default_state</code></td><td>string</td><td>Initial state for new nodes: <code>green</code>, <code>yellow</code>, or <code>red</code>. Useful for aggregator nodes that only reflect their dependencies &mdash; set to <code>green</code> so the node is transparent.</td></tr>
     <tr><td><code>meta</code></td><td>object</td><td>Arbitrary key-value metadata (team, region, etc.)</td></tr>
+    <tr><td><code>meta.checks</code></td><td>array</td><td>Optional HTTP health checks. Each item has <code>url</code> and <code>grep</code> (a string or list of strings that must appear in the response body). Run <code>depends check</code> on a schedule &mdash; the service never polls.</td></tr>
     <tr><td><code>ttl</code></td><td>string</td><td>Auto-expire to yellow if no state write within this duration (e.g. <code>30s</code>, <code>5m</code>, <code>1h</code>, <code>7d</code>)</td></tr>
   </table>
   <p>State is <strong>not</strong> set in the YAML &mdash; it's set at runtime via the API or the <code>depends</code> command. New nodes default to <code>yellow</code> unless <code>default_state</code> is specified.</p>
+</div>
+
+<div class="config-block">
+  <h3 id="health-checks">Health checks</h3>
+  <p>Nodes may list <code>meta.checks</code> to probe HTTP URLs from your infrastructure. Run <code>depends check</code> on a schedule (for example cron); the server never fetches these for you. Each probe must return HTTP 200 and include every <code>grep</code> string in the response body. Use <code>--dry-run</code> to print outcomes without calling the state API.</p>
+<pre><code>  api-server:
+    meta:
+      checks:
+        - url: https://api.example.com/health
+          grep: ok
+        - url: https://api.example.com/version
+          grep: ['1.', 'stable']</code></pre>
 </div>
 
 <div class="config-block">

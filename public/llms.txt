@@ -27,6 +27,7 @@ depends status [ns/node]   Show states (add --json for machine-readable output)
 depends set [ns/]node state  Set state: green, yellow, or red
 depends graph              Print dependency tree
 depends validate           Check depends.yml for errors
+depends check [--dry-run]  Run meta.checks HTTP probes and update state (cron)
 depends diff               Preview changes before pushing
 depends delete             Delete a namespace and all data
 ```

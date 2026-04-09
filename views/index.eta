@@ -112,9 +112,10 @@ nodes:
 
 <div class="config-block">
   <h3>Push state (red/yellow/green)</h3>
-  <p>Services report their own health via a single PUT. No polling, no agents.</p>
+  <p>Services report their own health via a single PUT &mdash; no polling, no agents.</p>
 <pre><code>curl -X PUT https://depends.cc/v1/state/myproject/database/red \
   -H "Authorization: Bearer $DEPENDS_TOKEN"</code></pre>
+  <p>If you prefer the conventional approach, define <code>meta.checks</code> in <code>depends.yml</code> and run <code>depends check</code> from cron; the CLI probes your HTTP endpoints and pushes green or red for you. See <a href="/docs#health-checks">Health checks</a> in the docs.</p>
 </div>
 
 <div class="config-block">
