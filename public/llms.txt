@@ -2,34 +2,50 @@
 
 depends.cc is a dependency state tracking service. It models systems as directed acyclic graphs (DAGs) where each node has a traffic-light state: green, yellow, or red.
 
+The service is a passive receiver: it does not poll, crawl, or run scheduled health checks. State arrives via the API or CLI; the only routine outbound HTTP from the server is delivery (webhooks, email). To probe URLs on a schedule, define `meta.checks` and run `depends check` from your own cron (or equivalent).
+
 When a node's state changes, the "effective state" of all downstream dependents is automatically recomputed. If a database goes red, every service that depends on it becomes effectively red — without updating each one individually.
 
 ## Key concepts
 
 - **Node**: A thing with a state (green/yellow/red). Has an optional label, reason, and solution.
 - **Edge**: A dependency between nodes. "A depends on B" means A's effective state is affected by B.
-- **Effective state**: The worst state of a node and all its transitive dependencies.
+- **Effective state**: The worst state of a node and all its transitive dependencies (red > yellow > green).
 - **Namespace**: A named container for a graph of nodes and edges. Owned by a token.
 - **Token**: An authentication credential. Prefix: `dep_`. Owns one or more namespaces.
 - **Reason**: Why a node is in its current state (e.g. "disk full on /var/data").
 - **Solution**: What to do about it (e.g. "Clear /var/log, expand volume").
 - **default_state**: Initial state for new nodes (default: yellow). Set to green for aggregator nodes that only reflect their dependencies.
+- **TTL**: Optional per-node duration. If set, a currently green node with no state write within the TTL resolves to yellow (stale) when read. Evaluation is lazy — run `depends check` on a schedule or any state write if you need timely TTL transitions.
+- **Notifications**: Rules in the graph (`depends.yml` or API) watch nodes and send webhooks and/or email when effective state matches `on` (`watch`, `on`, optional `ack` for suppress-until-ack).
+
+## meta.checks and depends check
+
+In `depends.yml`, optional `meta.checks` is a list of probes: each has `url` and `grep` (a string or list of strings that must appear in the HTTP response body). `depends check` GETs each URL, requires HTTP 200 and all greps to match, then PUTs the node to green or red. Use `--dry-run` to print results without updating state.
+
+Docs (HTML): https://depends.cc/docs#health-checks
 
 ## CLI quick reference
 
 ```
-depends serve              Run locally (no signup needed, uses dep_local token)
-depends signup             Get a token (auto-saved to ~/.config/depends/config.yml)
-depends init               Scaffold depends.yml from current directory name
-depends push [--prune]     Upload depends.yml (auto-creates namespace)
-depends pull               Download graph as depends.yml
-depends status [ns/node]   Show states (add --json for machine-readable output)
-depends set [ns/]node state  Set state: green, yellow, or red
-depends graph              Print dependency tree
-depends validate           Check depends.yml for errors
-depends check [--dry-run]  Run meta.checks HTTP probes and update state (cron)
-depends diff               Preview changes before pushing
-depends delete             Delete a namespace and all data
+depends serve [-p <port>]              Run the server locally (default: 3000)
+depends signup <email> <lak_...>       Hosted signup: Legendum account key; token emailed
+depends init                           Create a depends.yml in the current directory
+depends push [--prune]                 Upload depends.yml (auto-creates namespace)
+depends pull                           Download remote graph as depends.yml
+depends show                           Print current spec (YAML) without saving
+depends status [<ns/node>]             Show states (add --json for machine output)
+depends set [<ns>/]<node> <state>      Set green, yellow, or red
+depends graph                          Print dependency tree
+depends events [<ns/node>]             Recent state changes (--json, --limit)
+depends validate                       Validate depends.yml (errors, cycles)
+depends check [--dry-run]              Run meta.checks and update state (cron)
+depends diff                           Show what would change on push
+depends delete                         Delete a namespace and all its data
+depends usage                          Usage stats for current billing period
+depends update                         Update CLI to latest version
+depends admin tokens                   List tokens (server admin)
+depends admin plan <email> [plan]      Show or set plan (server admin)
 ```
 
 ## API quick reference
@@ -37,21 +53,25 @@ depends delete             Delete a namespace and all data
 Base URL: https://depends.cc/v1 (or http://localhost:3000/v1 for local)
 Auth: Bearer token in Authorization header
 
-POST   /v1/signup                              Create account (no auth)
+POST   /v1/signup                              Body: {"email","account_key"} — Legendum `lak_...` key; token emailed
 POST   /v1/namespaces                          Create namespace (token auth)
-DELETE /v1/namespaces/:ns                       Delete namespace
-GET    /v1/nodes/:ns                            List nodes
-GET    /v1/nodes/:ns/:id                        Get node detail
-PUT    /v1/nodes/:ns/:id                        Create/update node
-DELETE /v1/nodes/:ns/:id                        Delete node
-PUT    /v1/state/:ns/:id/:state                 Set state (green/yellow/red)
-GET    /v1/events/:ns[/:id]                     List state change events
-GET    /v1/graph/:ns                            Get graph (add ?format=yaml)
-PUT    /v1/graph/:ns                            Upload YAML graph
-GET    /v1/graph/:ns/:id/upstream               Transitive dependencies
-GET    /v1/graph/:ns/:id/downstream             Transitive dependents
-PUT    /v1/notifications/:ns                    Create webhook rule
-GET    /v1/usage/:ns                            Usage stats and limits
+DELETE /v1/namespaces/:ns                     Delete namespace
+GET    /v1/nodes/:ns                          List nodes
+GET    /v1/nodes/:ns/:id                      Get node detail
+PUT    /v1/nodes/:ns/:id                      Create/update node (label, depends_on, meta, ttl, …)
+DELETE /v1/nodes/:ns/:id                     Delete node
+PUT    /v1/state/:ns/:id/:state              Set state (green/yellow/red)
+GET    /v1/events/:ns[/:id]                  List events; query: limit, since, until
+GET    /v1/graph/:ns                         Get graph (?format=yaml)
+PUT    /v1/graph/:ns                         Upload YAML graph (?prune=true removes unlisted nodes)
+GET    /v1/graph/:ns/:id                     Subgraph for one node
+GET    /v1/graph/:ns/:id/upstream            Transitive dependencies
+GET    /v1/graph/:ns/:id/downstream         Transitive dependents
+GET    /v1/notifications/:ns                 List notification rules
+PUT    /v1/notifications/:ns                 Create/update rule
+DELETE /v1/notifications/:ns/:ruleId         Delete rule
+POST   /v1/notifications/:ns/:ruleId/ack     Acknowledge / un-suppress rule
+GET    /v1/usage/:ns                         Usage stats and limits
 
 ## Setting state with context
 
@@ -78,5 +98,5 @@ GET /ns/:ns/:node.json   Single node as JSON (same as GET /v1/nodes/:ns/:node)
 
 ## Machine-readable docs
 
-GET /docs with Accept: application/json returns structured API documentation.
-GET /v1/nodes/:ns with --json flag returns JSON array of all node states.
+GET /docs with `Accept: application/json` returns structured API documentation (`DOCS_JSON`).
+CLI: `depends status --json` and `depends events --json` for machine-readable output (not a query flag on GET /v1/nodes).
