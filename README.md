@@ -22,12 +22,28 @@ depends.cc runs in one of two modes, auto-detected at startup:
 
 You don't configure the mode explicitly; setting (or not setting) `LEGENDUM_API_KEY` is the switch.
 
-## Quick start
+## Installing the CLI
+
+The supported way to get the `depends` command is the install script hosted at [depends.cc](https://depends.cc). It needs Git and network access; if [Bun](https://bun.sh) is not installed, the script installs it first.
 
 ```bash
-# Install
 curl -fsSL https://depends.cc/install.sh | sh
+```
 
+What the script does:
+
+- Clones or updates `https://github.com/legendum/depends.git` into `~/.config/depends/src`
+- Runs `bun install` and `bun link` so `depends` is available on Bun’s global bin path (typically `~/.bun/bin/depends`)
+
+If the shell cannot find `depends`, add Bun’s bin directory to your `PATH` (the installer prints the exact `export` line). To upgrade the CLI later, run **`depends update`** (pulls latest in that directory and reinstalls deps) or run the `curl` one-liner again.
+
+**Developing from a clone:** `git clone` this repository, `bun install`, then run the server with `bun run dev` or `bun run src/server.ts` — see [Running tests](#running-tests) and [Deploy](#deploy). Use `bun link` in the repo if you want a global `depends` that points at your working tree.
+
+## Quick start
+
+One-liner install: `curl -fsSL https://depends.cc/install.sh | sh` — see [Installing the CLI](#installing-the-cli) for details. Then:
+
+```bash
 # Run locally (self-hosted, no signup needed)
 depends serve
 
@@ -197,6 +213,8 @@ Common cases: `400` for validation (bad state, bad TTL format, cycle detected), 
 ### CLI commands
 
 ```
+depends serve [-p <port>]               Run the server locally (default: 3000)
+depends signup <email> <lak_...>        Hosted signup — token emailed (Legendum key)
 depends init                            Scaffold depends.yml
 depends push [--prune]                  Sync depends.yml to the server
 depends pull                            Fetch namespace YAML from the server
@@ -388,6 +406,7 @@ State writes accumulate locally and are flushed to Legendum as integer charges (
 
 | Doc | Description |
 |-----|-------------|
+| [public/llms.txt](public/llms.txt) | Short LLM-oriented cheat sheet (also served at [/llms.txt](https://depends.cc/llms.txt)) |
 | [docs/CONCEPT.md](docs/CONCEPT.md) | Full API, YAML format, schema, CLI spec, billing, examples |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Run locally, production deploy, environment variables |
 | [docs/UPDATES.md](docs/UPDATES.md) | Upgrading CLI, server, and database migrations |
