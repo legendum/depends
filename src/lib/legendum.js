@@ -701,6 +701,7 @@ function linkController(opts) {
  * @param {function} opts.getToken     - async (request, ...extra) => string|null — return the stored account_token for the current user, or null
  * @param {function} opts.setToken     - async (request, accountToken, ...extra) => void — save the account_token for the current user
  * @param {function} [opts.clearToken] - async (request, ...extra) => void — optional; called when balance() returns token_not_found (e.g. clear stored token). Same extra args as getToken/setToken.
+ * @param {function} [opts.onLink] - async (request, accountToken, email, ...extra) => void — optional; called right after setToken succeeds in /confirm. Use for "user just linked" side effects like sending a welcome email or refreshing a session. `email` is the verified Legendum account email (string, may be null in edge cases). Errors thrown here are swallowed (best-effort) so a failing side effect can't break the link flow.
  * @param {object} [opts.client]       - SDK client from create(). If omitted, uses default (env vars)
  * @returns {function} async (request, ...extra) => Response|null — returns Response if handled, null if not a Legendum route. Extra args are passed through to callbacks.
  *
@@ -719,6 +720,7 @@ function middleware(opts) {
   var getToken = opts.getToken;
   var setToken = opts.setToken;
   var clearToken = opts.clearToken || (async () => {});
+  var onLink = opts.onLink || null;
   var client = opts.client || null;
 
   function getClient() {
@@ -783,6 +785,13 @@ function middleware(opts) {
         data = await c.pollLink(body.request_id);
         if (data.status === "confirmed" && data.account_token) {
           await setToken.apply(null, [request, data.account_token].concat(extra));
+          if (onLink) {
+            try {
+              await onLink.apply(null, [request, data.account_token, data.email || null].concat(extra));
+            } catch (_e) {
+              /* best-effort: a failing onLink side effect must not break the link flow */
+            }
+          }
           return jsonResponse({ ok: true, status: "confirmed" });
         }
         return jsonResponse({ ok: true, status: data.status });
@@ -877,10 +886,19 @@ function tab(accountToken, description, opts) {
   var closed = false;
 
   async function flush() {
-    if (total <= 0) return;
-    var amount = total;
-    total = 0;
-    await c.charge(accountToken, amount, description);
+    // Floor — never round up (avoid charging users for credits they didn't consume).
+    // Fractional remainder stays in `total` for the next flush; any sub-credit dust
+    // at close() is dropped.
+    var whole = Math.floor(total + 1e-9);
+    if (whole <= 0) return;
+    total -= whole;
+    try {
+      await c.charge(accountToken, whole, description);
+    } catch (e) {
+      // Roll back so the caller can retry without losing the units.
+      total += whole;
+      throw e;
+    }
   }
 
   return {
@@ -894,11 +912,28 @@ function tab(accountToken, description, opts) {
      */
     async add(amount) {
       if (closed) throw new Error("Legendum SDK: tab is closed");
-      total += (amount !== undefined ? amount : defaultAmount);
+      var n = (amount !== undefined ? amount : defaultAmount);
+      if (typeof n !== "number" || !isFinite(n) || n <= 0) {
+        throw new Error("Legendum SDK: tab.add() requires a positive finite number");
+      }
+      total += n;
       if (total >= threshold && !flushing) {
         flushing = flush().finally(() => { flushing = null; });
         await flushing;
       }
+    },
+
+    /**
+     * Flush any remaining balance without closing the tab. The tab remains
+     * usable — further add() calls are allowed. Useful for periodic settlement
+     * of partial balances that sit below the threshold.
+     * @returns {Promise<void>}
+     */
+    async flush() {
+      if (closed) throw new Error("Legendum SDK: tab is closed");
+      if (flushing) { await flushing; return; }
+      flushing = flush().finally(() => { flushing = null; });
+      await flushing;
     },
 
     /**
@@ -908,6 +943,7 @@ function tab(accountToken, description, opts) {
     async close() {
       if (closed) return;
       closed = true;
+      if (flushing) await flushing;
       await flush();
     },
   };

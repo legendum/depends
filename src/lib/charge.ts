@@ -48,69 +48,53 @@ export async function chargeBestEffort(
 }
 
 /**
- * Per-token running tab. We accumulate sub-credit amounts locally and only
- * ever POST integer credits to Legendum (whose /api/charge requires positive
- * integers). When `total` reaches a whole credit we charge `Math.floor(total)`
- * and carry the fractional remainder forward to the next write.
+ * Per-token running tab backed by the Legendum SDK. The SDK accepts
+ * fractional add() amounts, accumulates them client-side, and only POSTs
+ * floored whole credits to /api/charge.
  */
-interface Tab {
-  total: number;
-}
+const tabs = new Map<string, ReturnType<typeof legendum.tab>>();
 
-const tabs = new Map<string, Tab>();
-
-function getTab(legendumToken: string): Tab {
+function getTab(legendumToken: string) {
   let t = tabs.get(legendumToken);
   if (!t) {
-    t = { total: 0 };
+    t = legendum.tab(legendumToken, "depends usage", {
+      threshold: FLUSH_THRESHOLD,
+      amount: STATE_WRITE_COST,
+    });
     tabs.set(legendumToken, t);
   }
   return t;
 }
 
 /**
- * Charge for a state write (0.1 credits). Accumulated credits are flushed
- * to Legendum once the tab reaches FLUSH_THRESHOLD whole credits; the
- * fractional remainder stays on the local tab until the next call. Returns
- * a 402 Response on insufficient funds, null otherwise.
+ * Charge for a state write (0.1 credits). Returns a 402 Response on
+ * insufficient funds, null otherwise.
  */
 export async function chargeStateWrite(
   legendumToken: string | null,
 ): Promise<Response | null> {
   if (!legendumToken) return null;
-
-  const tab = getTab(legendumToken);
-  tab.total += STATE_WRITE_COST;
-
-  if (tab.total + 1e-9 < FLUSH_THRESHOLD) return null;
-  const whole = Math.floor(tab.total + 1e-9);
-
-  tab.total -= whole;
   try {
-    await legendum.charge(legendumToken, whole, "depends usage");
+    await getTab(legendumToken).add();
     return null;
   } catch (err: any) {
     if (err.code === "insufficient_funds") {
       tabs.delete(legendumToken);
       return insufficientFundsResponse();
     }
-    // Roll the failed amount back onto the tab so we don't lose credits.
-    tab.total += whole;
     throw err;
   }
 }
 
 /**
- * Flush all open tabs (e.g. on graceful shutdown). Any sub-credit dust is
- * rounded to the nearest whole credit; amounts below 0.5 are dropped.
+ * Flush all open tabs (e.g. on graceful shutdown). Sub-credit dust is
+ * dropped — never rounded up.
  */
 export async function flushAllTabs(): Promise<void> {
   for (const [token, tab] of tabs) {
-    const amount = Math.round(tab.total);
     tabs.delete(token);
-    if (amount < 1) continue;
     try {
-      await legendum.charge(token, amount, "depends usage");
+      await tab.close();
     } catch {
       // best-effort on shutdown
     }
