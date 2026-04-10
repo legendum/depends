@@ -57,7 +57,7 @@ const tabs = new Map<string, ReturnType<typeof legendum.tab>>();
 function getTab(legendumToken: string) {
   let t = tabs.get(legendumToken);
   if (!t) {
-    t = legendum.tab(legendumToken, "depends usage", {
+    t = legendum.tab(legendumToken, "depends.cc usage", {
       threshold: FLUSH_THRESHOLD,
       amount: STATE_WRITE_COST,
     });
