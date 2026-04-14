@@ -140,7 +140,7 @@ nodes:
 </div>
 
 <div class="config-block">
-  <h3>Using the CLI</h3>
+  <h3>Install the CLI</h3>
 <pre><code># Install
 curl -fsSL https://depends.cc/install.sh | sh
 
