@@ -6,7 +6,9 @@ const realFetch = globalThis.fetch;
 type FetchCall = { url: string };
 let calls: FetchCall[];
 
-function mockFetch(responder: (url: string) => { status: number; body: string }) {
+function mockFetch(
+  responder: (url: string) => { status: number; body: string },
+) {
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input.toString();
     calls.push({ url });

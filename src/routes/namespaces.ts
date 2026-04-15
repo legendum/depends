@@ -41,8 +41,17 @@ export async function handleSignup(
   // Link agent key to this service via Legendum
   let legendumToken: string;
   try {
-    const result = await legendum.linkAccount(body.account_key);
-    legendumToken = result.token;
+    const result = (await legendum.linkAccount(body.account_key)) as {
+      account_token: string;
+      email: string;
+    };
+    if (!result.account_token) {
+      return Response.json(
+        { error: "Legendum did not return an account token for this key." },
+        { status: 502 },
+      );
+    }
+    legendumToken = result.account_token;
   } catch (err: any) {
     const message = err?.message || "Failed to link Legendum account";
     const status = err?.status || 502;

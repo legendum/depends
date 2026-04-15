@@ -8,7 +8,10 @@ legendum.mock({
     throw new Error("charge should not be called in self-hosted mode");
   },
   balance: () => ({ balance: 100, held: 0 }),
-  linkAccount: () => ({ token: "lt_mock_token" }),
+  linkAccount: () => ({
+    account_token: "lt_mock_token",
+    email: "mock@test.com",
+  }),
 });
 
 let server: ReturnType<typeof createServer>;

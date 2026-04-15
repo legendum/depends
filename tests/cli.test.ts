@@ -23,7 +23,10 @@ import { createServer, setByLegendum } from "../src/server";
 const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
-  linkAccount: () => ({ token: "lt_mock_token" }),
+  linkAccount: () => ({
+    account_token: "lt_mock_token",
+    email: "mock@test.com",
+  }),
 });
 
 let server: ReturnType<typeof createServer>;
