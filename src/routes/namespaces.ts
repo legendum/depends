@@ -41,7 +41,7 @@ export async function handleSignup(
   // Link agent key to this service via Legendum
   let legendumToken: string;
   try {
-    const result = (await legendum.linkAccount(body.account_key)) as {
+    const result = (await legendum.linkKey(body.account_key)) as {
       account_token: string;
       email: string;
     };
