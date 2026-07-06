@@ -8,7 +8,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": ".",
+    "paths": {
+      "pues/*": ["./types/pues/*", "./pues/*"]
+    }
   },
   "include": ["src", "tests"]
 }

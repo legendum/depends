@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { legendum } from "pues/base/vendor/legendum";
 import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
 import { createServer, setByLegendum } from "../src/server";
 
-const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
   balance: () => ({ balance: 100, held: 0 }),

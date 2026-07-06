@@ -16,11 +16,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { legendum } from "pues/base/vendor/legendum";
 import { generateToken, hashToken } from "../src/auth";
 import { createTestDb } from "../src/db";
 import { createServer, setByLegendum } from "../src/server";
 
-const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => ({ transaction_id: 1, balance: 50 }),
   linkKey: () => ({

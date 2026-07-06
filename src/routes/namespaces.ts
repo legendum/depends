@@ -1,8 +1,7 @@
 import type { Database } from "bun:sqlite";
+import { legendum } from "pues/base/vendor/legendum";
 import { generateToken, hashToken } from "../auth";
 import { sendSignupEmail } from "../notify/email";
-
-const legendum = require("../lib/legendum.js");
 
 export async function handleSignup(
   db: Database,

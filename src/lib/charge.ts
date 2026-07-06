@@ -1,4 +1,4 @@
-const legendum = require("./legendum.js");
+import { legendum } from "pues/base/vendor/legendum";
 
 const STATE_WRITE_COST = 0.1;
 const FLUSH_THRESHOLD = 2;

@@ -1,8 +1,7 @@
 import type { Database } from "bun:sqlite";
 import yaml from "js-yaml";
+import { legendum } from "pues/base/vendor/legendum";
 import { wouldCreateCycle } from "./cycle";
-
-const legendum = require("../lib/legendum.js");
 
 interface YamlNode {
   label?: string;

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { legendum } from "pues/base/vendor/legendum";
 import { createTestDb } from "../src/db";
 import { createServer, setByLegendum } from "../src/server";
 
-const legendum = require("../src/lib/legendum.js");
 legendum.mock({
   charge: () => {
     throw new Error("charge should not be called in self-hosted mode");
