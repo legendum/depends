@@ -48,7 +48,7 @@ export async function handlePutState(
       "INSERT INTO nodes (ns_id, id, state, reason, solution, last_state_write) VALUES (?, ?, ?, ?, ?, datetime('now'))",
     ).run(nsId, nodeId, state, reason, solution);
 
-    const writeErr = await chargeStateWrite(legendumToken);
+    const writeErr = await chargeStateWrite(nsId, legendumToken);
     if (writeErr) return writeErr;
 
     dispatchNotifications(
@@ -71,14 +71,14 @@ export async function handlePutState(
       "UPDATE nodes SET last_state_write = datetime('now'), reason = COALESCE(?, reason), solution = COALESCE(?, solution) WHERE ns_id = ? AND id = ?",
     ).run(reason, solution, nsId, nodeId);
 
-    const writeErr = await chargeStateWrite(legendumToken);
+    const writeErr = await chargeStateWrite(nsId, legendumToken);
     if (writeErr) return writeErr;
 
     return new Response(null, { status: 204 });
   }
 
   // State change — charge for state write
-  const writeErr = await chargeStateWrite(legendumToken);
+  const writeErr = await chargeStateWrite(nsId, legendumToken);
   if (writeErr) return writeErr;
 
   const prevState = existing.state;

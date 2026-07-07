@@ -1,0 +1,1133 @@
+/*
+ * pues default stylesheet — emitted by base/style/buildStyle.ts as
+ * layer 2 of the consumer's public/dist/pues.css.
+ *
+ * Every value resolves to a `var(--pues-*)` reference; the `:root` +
+ * `[data-theme="light"]` blocks emitted as layer 1 supply the values
+ * from base/style/tokens.ts (overridden per-consumer via pues.yaml
+ * `style.dark` / `style.light`).
+ *
+ * Surface: ThemeChooser (was base/theme/theme.css), LogoButton,
+ * ObjectList +
+ * AddButton + FilterBar + ObjectDetail + RenameTitle (was
+ * base/objects/objects.css), Dialog (new in v0.11.0), Markdown
+ * (.pues-md). One file by design — buildStyle assembles one
+ * pues.css, not N per-component files.
+ */
+
+/* Screen-reader-only --------------------------------------------- */
+.pues-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* LogoButton ----------------------------------------------------- */
+.pues-logo-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--pues-logo-radius, 6px);
+}
+.pues-logo-button:focus-visible {
+  outline: 2px solid var(--pues-accent);
+  outline-offset: 2px;
+}
+.pues-logo-image {
+  width: var(--pues-logo-size, 28px);
+  height: var(--pues-logo-size, 28px);
+  border-radius: var(--pues-logo-radius, 6px);
+  display: block;
+}
+
+/* Bottom chrome shadow (logout, theme pills, FAB) ---------------- */
+.pues-shadow {
+  box-shadow: 0 2px 8px var(--pues-shadow-sm);
+}
+
+/* Picker — the segmented control (base/forms › Picker). A raised pill of
+   mutually-exclusive options; the carried shadow matches `.pues-shadow` so a
+   Picker reads the same lifted-pill way everywhere without the caller composing
+   it. ThemeChooser and any scope/mode picker render this. */
+.pues-picker {
+  display: inline-flex;
+  padding: 2px;
+  margin: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--pues-bg-raised);
+  box-shadow: 0 2px 8px var(--pues-shadow-sm);
+  gap: 0;
+  min-inline-size: 0;
+}
+.pues-picker-option {
+  border: none;
+  background: transparent;
+  color: var(--pues-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.pues-picker-option:hover {
+  color: var(--pues-text-primary);
+}
+.pues-picker-option[aria-pressed="true"] {
+  background: var(--pues-bg-surface);
+  color: var(--pues-text-primary);
+  box-shadow: 0 1px 3px var(--pues-shadow-sm);
+}
+
+/* Theme dock ----------------------------------------------------- */
+/*
+ * Fixes the ThemeChooser (label + pills) to the bottom-centre of the
+ * viewport, vertically aligned with the .pues-add-button FAB: both read
+ * --pues-fab-offset, so the dock's bottom edge sits the same distance
+ * above the viewport bottom as the FAB.
+ */
+.pues-theme-dock {
+  position: fixed;
+  left: 50%;
+  bottom: var(--pues-fab-offset, 1rem);
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pues-theme-dock-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pues-text-muted);
+}
+
+/* Logout link ---------------------------------------------------- */
+/*
+ * Fixed bottom-left "Logout" button (the <Logout> component, base/auth).
+ * Shares --pues-fab-offset with the FAB and theme dock, so the three sit
+ * the same distance above the viewport bottom: logout (left), theme
+ * (centre), FAB (right). Styled to read as a single *unselected*
+ * ThemeChooser pill — `--pues-bg-raised` track + `--pues-text-secondary`
+ * text at the same 13px / 500 — turning danger-red on hover.
+ */
+.pues-logout {
+  position: fixed;
+  left: var(--pues-fab-offset, 1rem);
+  bottom: var(--pues-fab-offset, 1rem);
+  z-index: 5;
+  margin: 0;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.pues-logout:hover {
+  color: var(--pues-danger-text);
+}
+/* Inline variant: in-flow (no fixed dock) for embedding in a dialog —
+   <SettingsDialog>'s footer. Left-aligned by `.pues-settings-footer`. */
+.pues-logout--inline {
+  position: static;
+  left: auto;
+  bottom: auto;
+  z-index: auto;
+  box-shadow: none;
+}
+
+/* Settings link -------------------------------------------------- */
+/*
+ * Fixed bottom-left "Settings" button (the <Settings> component, base/auth) —
+ * the screen-dock counterpart of <Logout>, sharing --pues-fab-offset so it
+ * sits where Logout would. Same *unselected* ThemeChooser-pill look; hover
+ * lifts text to primary (vs Logout's danger-red) since it's non-destructive.
+ */
+.pues-settings {
+  position: fixed;
+  left: var(--pues-fab-offset, 1rem);
+  bottom: var(--pues-fab-offset, 1rem);
+  z-index: 5;
+  margin: 0;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.pues-settings:hover {
+  color: var(--pues-text-primary);
+}
+/* Settings dialog footer: left-aligns the default inline <Logout>. Lives inside
+   the Dialog's pinned `.pues-dialog-footer` (which supplies the top border +
+   padding), so it stays put while the settings body scrolls. */
+.pues-settings-footer {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* ObjectList ----------------------------------------------------- */
+.pues-object-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pues-list-gap, 0.5rem);
+}
+.pues-object-row {
+  padding: var(--pues-row-padding, 0.75rem 1rem);
+  background: var(--pues-bg-surface);
+  color: var(--pues-text-primary);
+  border: 1px solid var(--pues-border-default);
+  border-radius: var(--pues-radius, 0.5rem);
+}
+.pues-object-row__label {
+  font: inherit;
+  color: inherit;
+}
+.pues-object-list__loading,
+.pues-object-list__empty,
+.pues-object-list__error {
+  padding: var(--pues-row-padding, 0.75rem 1rem);
+  color: var(--pues-text-muted);
+}
+.pues-object-list__error {
+  color: var(--pues-danger-text);
+}
+
+/* Swipe-row clickable panel -------------------------------------- */
+/*
+ * The clickable panel of a swipe-to-reveal list row (consumer markup,
+ * paired with the `useSwipeToReveal` hook).
+ *
+ * Pinned to a full 100% with `flex: 0 0 100%` so the whole visible row
+ * stays the click target no matter how many rigid-width off-canvas
+ * action buttons (Edit/Delete) sit beside it in the flex line. `flex: 1`
+ * would let those buttons size the panel to the leftover space and leave
+ * the right side a dead tap target — visible with two action buttons,
+ * masked with one. `> * { width: 100% }` makes the inner content fill
+ * the panel. Works for one button or two, no per-consumer override.
+ */
+.pues-row-main {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pues-row-main > * {
+  width: 100%;
+}
+
+/* Keyboard-nav highlight (useListKeyboardNav) -------------------- */
+/*
+ * The row under the Ctrl+] / Ctrl+[ cursor. Both the raised fill and the left
+ * accent bar are drawn with inset box-shadow rather than `background`, so the
+ * highlight wins regardless of stylesheet order — even when applied to a
+ * consumer's own row element that already sets its own `background` (box-shadow
+ * never conflicts with the background property; an opaque inset fill that big
+ * just covers it). The accent bar is listed first so it paints over the fill.
+ * Apply to the row's visible surface element, with data-pues-nav-index on it
+ * (or an ancestor) so the hook can scroll it into view.
+ */
+.pues-row-nav {
+  box-shadow:
+    inset 3px 0 0 var(--pues-accent),
+    inset 0 0 0 100vmax var(--pues-bg-raised);
+}
+
+/* Drag handle (dnd-kit sortable rows) ---------------------------- */
+/*
+ * Grab affordance rendered by the pues <DragHandle> component
+ * (objects/DragHandle.tsx). `.pues-drag-handle` doubles as the
+ * gesture-arbitration marker — a consumer's swipe / long-press hook does
+ * `closest('.pues-drag-handle')` to bow out and let dnd-kit own the press.
+ * `--disabled` is the inert placeholder shown when reorder is disabled;
+ * `.pues-drag-overlay` styles the dnd-kit <DragOverlay> drag clone.
+ */
+.pues-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex-shrink: 0;
+  cursor: grab;
+  color: var(--pues-text-faint);
+  touch-action: none;
+  /* Vertical padding enlarges the grab/touch zone above and below the
+     14px glyph (~30px tall total). Inside a center-aligned row it's
+     invisible; rows are taller than this, so it never grows the row. */
+  padding: 8px 0;
+}
+.pues-drag-handle:active {
+  cursor: grabbing;
+}
+.pues-drag-handle svg {
+  width: 14px;
+  height: 14px;
+}
+.pues-drag-handle--disabled {
+  cursor: default;
+  color: var(--pues-border-default);
+  opacity: 0.45;
+  pointer-events: none;
+}
+.pues-drag-overlay {
+  background: var(--pues-bg-surface);
+  border: 1px solid var(--pues-accent);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--pues-shadow-lg);
+  opacity: 0.95;
+}
+
+/* AddButton (FAB) ------------------------------------------------ */
+.pues-add-button {
+  position: fixed;
+  right: var(--pues-fab-offset, 1rem);
+  bottom: var(--pues-fab-offset, 1rem);
+  width: var(--pues-fab-size, 3rem);
+  height: var(--pues-fab-size, 3rem);
+  border-radius: 50%;
+  border: none;
+  background: var(--pues-accent);
+  color: var(--pues-on-accent);
+  font-size: var(--pues-fab-glyph-size, 1.5rem);
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* FilterChips — a row of `All` + per-option toggle chips with counts. Neutral
+   skeleton + a default accent fill; apps colour their own categories by
+   overriding `.pues-chip--<key>.pues-chip--active`. */
+.pues-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pues-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--pues-border-default);
+  background: var(--pues-bg-surface);
+  color: var(--pues-text-secondary);
+  font-size: 12px;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+.pues-chip:hover {
+  border-color: var(--pues-accent);
+}
+.pues-chip--active {
+  color: var(--pues-on-accent);
+  border-color: var(--pues-accent);
+  background: var(--pues-accent);
+}
+.pues-chip__count {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* CountsPill — a read-only breakdown: a row of tiny letters over a row of
+   counts. The grid template (column count) is set inline from `cells.length`.
+   Apps colour their own categories via `.pues-counts__value--<key>`. */
+.pues-counts {
+  display: inline-grid;
+  row-gap: 3px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.pues-counts__letter {
+  font-size: 9px;
+  text-align: center;
+  color: var(--pues-text-faint);
+}
+.pues-counts__sep {
+  padding: 0 3px;
+  color: var(--pues-text-faint);
+}
+.pues-counts__value {
+  text-align: center;
+}
+
+.pues-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: var(--pues-row-padding, 0.75rem 1rem);
+  /* The open form is in normal flow at the page bottom, where the fixed
+     `.pues-theme-dock` / `.pues-logout` float over it. `margin-bottom` adds
+     scroll runway below the form; `scroll-margin-bottom` makes AddButton's
+     `scrollIntoView({ block: "end" })` stop that far short of the viewport
+     bottom — together they lift the form clear of the docks on desktop, where
+     (unlike mobile) no keyboard scrolls the focused input up. */
+  margin-bottom: var(--pues-add-form-clearance, 6rem);
+  scroll-margin-bottom: var(--pues-add-form-clearance, 6rem);
+}
+.pues-add-form__input {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--pues-border-default);
+  border-radius: var(--pues-radius, 0.5rem);
+  background: var(--pues-bg-surface);
+  color: var(--pues-text-primary);
+}
+.pues-add-form__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.pues-add-form__submit,
+.pues-add-form__cancel {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--pues-border-default);
+  border-radius: var(--pues-radius, 0.5rem);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.pues-add-form__submit {
+  background: var(--pues-accent);
+  color: var(--pues-on-accent);
+  border-color: var(--pues-accent);
+}
+.pues-add-form__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pues-add-form__error {
+  margin: 0;
+  color: var(--pues-danger-text);
+  font-size: 0.875rem;
+}
+
+/* FilterBar ------------------------------------------------------ */
+.pues-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0 12px;
+  min-height: 44px;
+  background: var(--pues-bg-page);
+  border: 1px solid var(--pues-border-default);
+  border-radius: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pues-filter-bar:focus-within {
+  border-color: var(--pues-accent);
+  box-shadow: 0 0 0 1px var(--pues-accent-glow);
+}
+.pues-filter-bar-icon {
+  flex-shrink: 0;
+  display: flex;
+  color: var(--pues-text-muted);
+}
+.pues-filter-bar-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 0;
+  border: none;
+  background: transparent;
+  color: var(--pues-text-primary);
+  font: inherit;
+  outline: none;
+}
+.pues-filter-bar-input::placeholder {
+  color: var(--pues-text-muted);
+}
+.pues-filter-bar-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.pues-filter-bar-clear {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin: 0 -4px 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pues-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pues-filter-bar-clear:hover {
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-primary);
+}
+
+/* TopBar (app shell) --------------------------------------------- */
+/*
+ * Fixed top bar assembled by the <TopBar> component: a left group
+ * (LogoButton + FilterBar) and an optional right slot (e.g. <Legendum>).
+ * `.pues-topbar-search-filter` is the layout class handed to FilterBar's
+ * `className` so the filter flexes to fill the bar. z-index is a knob
+ * (`--pues-topbar-z`, default 10) so a consumer that stacks chrome over
+ * the bar can bump it via style.vars without re-declaring the rule.
+ */
+.pues-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--pues-topbar-z, 10);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--pues-bg-surface);
+  border-bottom: 1px solid var(--pues-border-default);
+}
+.pues-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.pues-topbar-search-filter {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+}
+.pues-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Icon button (chrome primitive) -------------------------------- */
+/*
+ * Bordered, icon-centered button used in chrome — detail-header actions
+ * (e.g. undo/redo), home-row trailing actions (e.g. star/open), etc.
+ * This is the shared *skin* only; consumers add their own sizing and
+ * states. Two common shapes: size by content (`padding: 6px`) + a
+ * disabled style; or pin a fixed square (`width/height: 30px;
+ * padding: 0; line-height: 0`) so a text emoji and an SVG render
+ * identically, layering `[aria-pressed]` toggle variants on top. Keep
+ * size / disabled / pressed rules in the consumer, not here.
+ */
+.pues-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--pues-border-default);
+  background: var(--pues-bg-page);
+  color: var(--pues-text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.pues-icon-btn:hover {
+  color: var(--pues-text-primary);
+  border-color: var(--pues-border-strong);
+}
+
+/* Bare-button reset ---------------------------------------------- */
+/* Strip the native <button> chrome so a control can be styled from scratch — for
+   tabs, icon buttons, click-to-copy handles, quiet text links, and the like.
+   Components layer their own padding / colour / hover on top (loaded after this,
+   so their declarations win at equal specificity). Harmless on a non-button
+   element too, so a clickable <div>/<a> can share the same affordance. */
+.pues-btn-reset {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+/* TabStrip — an underlined `role="tablist"` strip. The active tab carries the
+   accent underline; an optional dot flags attention (e.g. open issues). The
+   `--scrollable` variant scrolls sideways (hidden scrollbar) instead of
+   wrapping; `--dialog` is the tighter in-dialog size. */
+.pues-tabstrip {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--pues-border-default);
+}
+.pues-tabstrip--scrollable {
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+}
+.pues-tabstrip--scrollable::-webkit-scrollbar {
+  display: none;
+}
+.pues-tabstrip-tab {
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--pues-text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  /* Don't shrink/wrap — each tab keeps its width and the strip scrolls. */
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.pues-tabstrip-tab--active {
+  color: var(--pues-text-primary);
+  border-bottom-color: var(--pues-accent);
+}
+.pues-tabstrip--dialog .pues-tabstrip-tab {
+  padding: 8px 12px;
+  font-weight: 500;
+  font-size: inherit;
+}
+/* Attention dot on a tab — presence only, no count. */
+.pues-tabstrip-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 5px;
+  vertical-align: super;
+  border-radius: 50%;
+  background: var(--pues-danger);
+}
+
+/* Button (chrome primitive) ------------------------------------- */
+.pues-btn {
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  background: var(--pues-accent);
+  color: var(--pues-on-accent);
+}
+.pues-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pues-btn-secondary {
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-primary);
+}
+
+/* ObjectDetail --------------------------------------------------- */
+.pues-object-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pues-object-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pues-object-detail-back {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--pues-border-strong);
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-primary);
+}
+.pues-object-detail-back:hover {
+  background: var(--pues-bg-raised-hover);
+}
+.pues-object-detail-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--pues-detail-center-gap, 4px);
+}
+.pues-object-detail-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.pues-object-detail-subtitle {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.pues-object-detail-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pues-object-detail-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* RenameTitle ---------------------------------------------------- */
+.pues-rename-title {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+input.pues-rename-title {
+  cursor: text;
+  outline: none;
+  border: 1px solid var(--pues-accent);
+  border-radius: var(--pues-radius, 0.5rem);
+  background: var(--pues-bg-surface);
+}
+
+/* Dialog --------------------------------------------------------- */
+.pues-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--pues-overlay);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px 16px;
+}
+.pues-dialog {
+  background: var(--pues-bg-surface);
+  border: 1px solid var(--pues-border-default);
+  border-radius: var(--pues-dialog-border-radius, 12px);
+  width: 100%;
+  max-width: var(--pues-dialog-max-width, 520px);
+  max-height: 85vh;
+  /* Flex column so the header stays put and only the body scrolls. The panel
+   * itself clips (overflow hidden) — the scroll lives on .pues-dialog-body. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 48px var(--pues-shadow-xl);
+}
+.pues-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--pues-border-default);
+  /* Pinned: title + underline + × stay visible while the body scrolls. */
+  flex: 0 0 auto;
+}
+.pues-dialog-close {
+  background: none;
+  border: none;
+  color: var(--pues-text-secondary);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 6px;
+}
+.pues-dialog-close:hover {
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-primary);
+}
+.pues-dialog-body {
+  padding: 20px;
+  /* The only scrollable region — header (and footer, if any) stay pinned. */
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+.pues-dialog-footer {
+  /* Optional pinned action bar — the mirror of the header (top border instead
+   * of bottom). Layout of the actions inside is the consumer's. */
+  flex: 0 0 auto;
+  padding: 16px 20px;
+  border-top: 1px solid var(--pues-border-default);
+}
+
+/* Dialog content (sections, code blocks, install-command copy row) --
+ * Rendered by consumer markup inside `.pues-dialog-body` (e.g. an
+ * InstallDialog). Shipped as a default so consumers reference these
+ * classes rather than re-declaring them per app. */
+.pues-dialog-section {
+  margin-bottom: 20px;
+}
+.pues-dialog-section:last-child {
+  margin-bottom: 0;
+}
+.pues-dialog-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pues-text-secondary);
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.pues-dialog-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.pues-dialog-section-head h3 {
+  margin: 0;
+}
+.pues-dialog-copy-hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pues-success);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.pues-dialog-section p {
+  font-size: 14px;
+  color: var(--pues-text-body);
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+.pues-dialog-section code {
+  background: var(--pues-bg-page);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--pues-accent-light);
+}
+.pues-dialog-code {
+  background: var(--pues-bg-page);
+  border: 1px solid var(--pues-border-default);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--pues-text-primary);
+  overflow-x: auto;
+  margin: 0;
+  white-space: pre;
+  line-height: 1.6;
+}
+/* Install command row: text scrolls; copy icon stays fixed in the corner. */
+button.pues-dialog-code-install-wrap {
+  appearance: none;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  margin: 0;
+}
+.pues-dialog-code-install-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  background: var(--pues-bg-page);
+  border: 1px solid var(--pues-border-default);
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.pues-dialog-code-install-wrap:hover {
+  border-color: var(--pues-border-strong);
+}
+.pues-dialog-code-install-wrap:focus {
+  outline: none;
+}
+.pues-dialog-code-install-wrap:focus-visible {
+  outline: 2px solid var(--pues-accent);
+  outline-offset: 2px;
+}
+.pues-dialog-code-install-wrap.pues-dialog-code--flash {
+  border-color: var(--pues-success);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+.pues-dialog-code-install-scroll {
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 38px 12px 14px;
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--pues-text-primary);
+  white-space: pre;
+  line-height: 1.6;
+  margin: 0;
+}
+.pues-dialog-code-install-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  line-height: 0;
+  color: var(--pues-text-muted);
+  pointer-events: none;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+.pues-dialog-code-install-wrap:hover .pues-dialog-code-install-icon {
+  color: var(--pues-text-secondary);
+}
+.pues-dialog-code-install-wrap.pues-dialog-code--flash .pues-dialog-code-install-icon {
+  color: var(--pues-success);
+}
+
+/* Legendum widget ------------------------------------------------ */
+/*
+ * Default styling for the <Legendum> auth/credits widget (base/auth).
+ * The component applies these classes by default, so a consumer gets
+ * the styled widget with zero CSS or className props — override by
+ * passing `className*` slots to <Legendum>, or by re-declaring these
+ * rules in the consumer's own (later-cascaded) stylesheet.
+ */
+.pues-legendum-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s;
+}
+.pues-legendum-linked {
+  background: var(--pues-bg-raised);
+  color: var(--pues-text-primary);
+}
+.pues-legendum-linked:hover {
+  background: var(--pues-bg-raised-hover);
+}
+.pues-legendum-link {
+  background: var(--pues-accent);
+  color: var(--pues-on-accent);
+}
+.pues-legendum-link:hover {
+  background: var(--pues-accent-hover);
+}
+.pues-legendum-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.pues-legendum-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 11px;
+  font-weight: 700;
+}
+/* Low-credits warning accent — a one-off lime, intentionally not a
+   token (distinct from --pues-success green). */
+.pues-legendum-linked.pues-legendum-low-credits {
+  border: 2px solid #84cc16;
+}
+.pues-legendum-linked .pues-legendum-icon {
+  background: var(--pues-bg-raised-hover);
+}
+
+/* LoginScreen ---------------------------------------------------- */
+/*
+ * Default styling for the <LoginScreen> logged-out UI (base/auth).
+ * The component applies these classes by default, so a consumer gets
+ * the styled screen with zero CSS or className props. The login CTA
+ * is a <Legendum> link styled as a full-width accent button via
+ * `.pues-login-btn` (LoginScreen's `legendumClassName` default) —
+ * distinct from the compact `.pues-legendum-btn` widget look.
+ */
+.pues-login-screen {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  text-align: center;
+}
+.pues-login-screen h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.pues-login-screen p {
+  color: var(--pues-text-secondary);
+  margin-bottom: 24px;
+}
+.pues-login-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 20px;
+  margin-bottom: 16px;
+}
+.pues-login-btn {
+  display: inline-block;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  background: var(--pues-accent);
+  color: var(--pues-on-accent);
+}
+.pues-login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Markdown ------------------------------------------------------- */
+/* Typography only — consumers add their own padding/borders around the block. */
+.pues-md {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--pues-text-primary);
+}
+.pues-md p {
+  margin: 0.5em 0;
+}
+.pues-md p:first-child {
+  margin-top: 0;
+}
+.pues-md p:last-child {
+  margin-bottom: 0;
+}
+.pues-md h1,
+.pues-md h2,
+.pues-md h3,
+.pues-md h4 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: 0.65em 0 0.35em;
+  color: var(--pues-text-primary);
+}
+.pues-md h1:first-child,
+.pues-md h2:first-child,
+.pues-md h3:first-child {
+  margin-top: 0;
+}
+.pues-md ul,
+.pues-md ol {
+  margin: 0.35em 0;
+  padding-left: 1.35em;
+}
+.pues-md li {
+  margin: 0.2em 0;
+}
+.pues-md code {
+  font-size: 0.9em;
+  background: var(--pues-bg-surface);
+  padding: 0.12em 0.4em;
+  border-radius: 4px;
+}
+.pues-md pre {
+  background: var(--pues-bg-surface);
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.5em 0;
+  font-size: 14px;
+}
+.pues-md pre code {
+  background: none;
+  padding: 0;
+}
+.pues-md blockquote {
+  margin: 0.4em 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--pues-border-strong);
+  color: var(--pues-text-body);
+}
+/* Links — own class so they style in both block and inline contexts. */
+.pues-md-link {
+  color: var(--pues-accent-light);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.pues-md-link:hover {
+  color: var(--pues-accent-light);
+  filter: brightness(1.15);
+}
+/* Forms — `<select className="pues-select">` (base/forms › Select). Suppress the
+   native dropdown arrow and paint a consistent chevron with room to breathe;
+   element-qualified so `padding-inline-end` wins over a composed field-box class
+   (e.g. `.input`) whose `padding` shorthand would otherwise reset it. Styles only
+   the dropdown affordance — the box (border/background) comes from that field
+   class, so a select matches its sibling text inputs. */
+select.pues-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: 38px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+/* Forms — `<textarea className="pues-textarea">` (base/forms › TextArea). Undo
+   the element's divergent browser defaults so it behaves like a sibling text
+   input: grow on the vertical axis only, and inherit the UI font (a textarea
+   otherwise falls back to monospace). Styles only the field's behaviour — the
+   box (border/background) comes from a composed field class, e.g. `.input`. */
+textarea.pues-textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+/* Fetched (base/sse › Fetched) loading/error placeholder — the muted, centred
+   hint shown before data lands. Mirrors the plain empty-state look so adopting
+   Fetched changes nothing visually; override per call via the `loading`/`error`
+   props. `--error` is a styling hook left muted by default (an error reads like
+   any other placeholder unless a consumer chooses to flag it). */
+.pues-fetch-state {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  color: var(--pues-text-muted);
+}

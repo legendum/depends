@@ -1,0 +1,24 @@
+export const chargeNamed: any;
+export const chargeNow: any;
+export const isBillingConfigured: any;
+export const isInsufficientFunds: any;
+export const isTokenInvalid: any;
+export const reserveNamed: any;
+export const reserveNow: any;
+export const settleTotal: any;
+export const getChargeSpec: any;
+export const getTabSpec: any;
+export const readBillingConfig: any;
+export const createTabs: any;
+export const createTabsFromConfig: any;
+
+export type BillingChargeSpec = any;
+export type BillingCode = any;
+export type BillingConfig = any;
+export type BillingIssue = any;
+export type BillingReservation = any;
+export type BillingResult = any;
+export type BillingTab = any;
+export type BillingTabSpec = any;
+export type BillingTabs = any;
+export type TabChannel = any;

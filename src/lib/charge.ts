@@ -1,3 +1,4 @@
+import { createTabs } from "pues/base/billing/server";
 import { legendum } from "pues/base/vendor/legendum";
 
 const STATE_WRITE_COST = 0.1;
@@ -48,42 +49,38 @@ export async function chargeBestEffort(
 }
 
 /**
- * Per-token running tab backed by the Legendum SDK. The SDK accepts
- * fractional add() amounts, accumulates them client-side, and only POSTs
- * floored whole credits to /api/charge.
+ * Running usage tab (pues base/billing). Canonical keying (pues ≥0.50.0):
+ * subject = the namespace id (stable), the token passed fresh on every add —
+ * rotation rebinds instead of stranding a dead-token tab. Fractional adds
+ * accumulate client-side; only floored whole credits POST to /api/charge.
  */
-const tabs = new Map<string, ReturnType<typeof legendum.tab>>();
-
-function getTab(legendumToken: string) {
-  let t = tabs.get(legendumToken);
-  if (!t) {
-    t = legendum.tab(legendumToken, "depends.cc usage", {
+const tabs = createTabs({
+  channels: {
+    usage: {
+      description: "depends.cc usage",
       threshold: FLUSH_THRESHOLD,
-      amount: STATE_WRITE_COST,
-    });
-    tabs.set(legendumToken, t);
-  }
-  return t;
-}
+      defaultAmount: STATE_WRITE_COST,
+    },
+  },
+});
 
 /**
  * Charge for a state write (0.1 credits). Returns a 402 Response on
  * insufficient funds, null otherwise.
  */
 export async function chargeStateWrite(
+  nsId: number,
   legendumToken: string | null,
 ): Promise<Response | null> {
   if (!legendumToken) return null;
-  try {
-    await getTab(legendumToken).add();
-    return null;
-  } catch (err: any) {
-    if (err.code === "insufficient_funds") {
-      tabs.delete(legendumToken);
-      return insufficientFundsResponse();
-    }
-    throw err;
-  }
+  const r = await tabs.add({
+    channel: "usage",
+    subject: nsId,
+    accountToken: legendumToken,
+  });
+  if (r.ok) return null;
+  if (r.issue.code === "insufficient_funds") return insufficientFundsResponse();
+  throw r.issue.cause ?? new Error(r.issue.message);
 }
 
 /**
@@ -91,12 +88,5 @@ export async function chargeStateWrite(
  * dropped — never rounded up.
  */
 export async function flushAllTabs(): Promise<void> {
-  for (const [token, tab] of tabs) {
-    tabs.delete(token);
-    try {
-      await tab.close();
-    } catch {
-      // best-effort on shutdown
-    }
-  }
+  await tabs.closeAll();
 }
